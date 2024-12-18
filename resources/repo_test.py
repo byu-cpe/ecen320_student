@@ -227,7 +227,7 @@ class make_test(repo_test):
     '''
 
     def __init__(self, make_rule, generate_output_file = True, make_output_filename=None,
-                 abort_on_error=True, timeout_seconds = 0):
+                 abort_on_error=True, timeout_seconds = 60):
         ''' make_rule is the string makefile rule that is executed. '''
         if generate_output_file and make_output_filename is None:
             # default makefile output filename
