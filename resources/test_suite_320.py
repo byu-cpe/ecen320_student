@@ -83,7 +83,7 @@ class test_suite_320(repo_test_suite):
             test_num += len(self.clean_tests) 
         self.print_test_end_message()
 
-def build_test_suite_320(assignment_name,  min_err_commits = 3, max_repo_files = 20):
+def build_test_suite_320(assignment_name, max_repo_files = 20):
     parser = argparse.ArgumentParser(description=f"Test suite for 320 Assignment: {assignment_name}")
     parser.add_argument("--repo", help="Path to the repository to test (default is current directory)")
     parser.add_argument("--norepo", action="store_true", help="Do not run Repo tests")
@@ -104,7 +104,7 @@ def build_test_suite_320(assignment_name,  min_err_commits = 3, max_repo_files =
         summary_log_filename = args.log
 
     # Build test suite
-    test_suite = test_suite_320(repo, assignment_name, min_err_commits = min_err_commits, 
+    test_suite = test_suite_320(repo, assignment_name,
         max_repo_files = max_repo_files, summary_log_filename = summary_log_filename)
 
     if args.norepo:
