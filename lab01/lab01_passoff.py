@@ -9,6 +9,7 @@ resources_path = pathlib.Path(__file__).resolve().parent.parent  / 'resources'
 sys.path.append( str(resources_path) )
 
 import test_suite_320
+import repo_test
 
 def main():
     tester = test_suite_320.build_test_suite_320("lab01", max_repo_files = 10)
