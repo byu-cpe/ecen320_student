@@ -14,25 +14,25 @@ from repo_test_suite import repo_test_suite
 
 class test_suite_320(repo_test_suite):
 
-    def __init__(self, repo, assignment_name, 
-                 min_err_commits = 3, max_repo_files = 20, summary_log_filename = None):
+    def __init__(self, repo, assignment_name, max_repo_files = 20, summary_log_filename = None):
         # Reference to the Git repository
         super().__init__(repo,test_name = assignment_name, summary_log_filename = summary_log_filename)
         self.repo_tests = []
         self.build_tests = []
         self.clean_tests = []
-        self.add_repo_tests(min_err_commits, max_repo_files, tag_str = assignment_name)
+        self.add_repo_tests(max_repo_files, tag_str = assignment_name)
         self.add_clean_tests()
         self.run_repo_tests = True
         self.run_build_tests = True
         self.run_clean_tests = True
 
-    def add_repo_tests(self, min_err_commits, max_repo_files, tag_str = None, 
-                       list_git_commits = True, check_start_code = False):
+    def add_repo_tests(self, max_repo_files, tag_str = None, 
+                       list_git_commits = True, check_start_code = False, min_err_commits = None ):
         # Tests involved with checking the integrity and requirements of the repository
         if list_git_commits:
             self.add_repo_test(repo_test.list_git_commits())
-        self.add_repo_test(get_err_git_commits(min_err_commits))
+        if min_err_commits is not None:
+            self.add_repo_test(get_err_git_commits(min_err_commits))
         self.add_repo_test(repo_test.check_for_uncommitted_files())
         self.add_repo_test(repo_test.check_for_max_repo_files(max_repo_files))
         if check_start_code:
@@ -59,7 +59,7 @@ class test_suite_320(repo_test_suite):
         # Add test to see if the file was generated (in the current working directory)
         check_file_test = repo_test.file_exists_test(gen_file_list)
         self.add_build_test(check_file_test)
-        # Add test to see if the file was generated (in the current working directory)
+        # Add test to make sure the file is not committed in the repository
         non_committed_files_test = repo_test.file_not_tracked_test(gen_file_list)
         self.add_build_test(non_committed_files_test)
 
