@@ -14,7 +14,8 @@ from repo_test_suite import repo_test_suite
 
 class test_suite_320(repo_test_suite):
 
-    def __init__(self, repo, assignment_name, min_err_commits = 3, max_repo_files = 20, summary_log_filename = None):
+    def __init__(self, repo, assignment_name, 
+                 min_err_commits = 3, max_repo_files = 20, summary_log_filename = None):
         # Reference to the Git repository
         super().__init__(repo,test_name = assignment_name, summary_log_filename = summary_log_filename)
         self.repo_tests = []
@@ -27,7 +28,7 @@ class test_suite_320(repo_test_suite):
         self.run_clean_tests = True
 
     def add_repo_tests(self, min_err_commits, max_repo_files, tag_str = None, 
-                       list_git_commits = True, require_report_file = True, check_start_code = False):
+                       list_git_commits = True, check_start_code = False):
         # Tests involved with checking the integrity and requirements of the repository
         if list_git_commits:
             self.add_repo_test(repo_test.list_git_commits())
@@ -38,8 +39,6 @@ class test_suite_320(repo_test_suite):
             self.add_repo_test(repo_test.check_remote_updates("startercode"))
         if tag_str is not None:
             self.add_repo_test(repo_test.check_for_tag(tag_str))
-        if require_report_file:
-            self.add_repo_test(repo_test.file_exists_test(["report.md",]))
 
     def add_clean_tests(self):
         self.add_clean_test(repo_test.check_for_untracked_files())
