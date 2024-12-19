@@ -18,7 +18,7 @@ def main():
     tester.add_make_test("upper")
     tester.add_make_test("lineno")
     tester.add_make_test("bottom")
-    tester.add_build_test(repo_test.file_exists_test(["reverse.txt", "upper.txt", "upper.txt", "lineno.txt", "bottom.txt"]))
+    tester.add_file_check(["reverse.txt", "upper.txt", "upper.txt", "lineno.txt", "bottom.txt"])
     tester.run_tests()
 
 if __name__ == "__main__":

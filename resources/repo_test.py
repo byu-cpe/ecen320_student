@@ -162,12 +162,19 @@ class file_exists_test(repo_test):
     ''' Checks to see if files exist in a repo directory. Note that this is a file system
     check and not a git check. The intent of this test is to see if the given file is
     created after executing some other command.
+
+    This test also has the option of copying the files to a directory after the file check
+    for later review.
     '''
 
-    def __init__(self, repo_file_list, abort_on_error=True):
-        '''  '''
+    def __init__(self, repo_file_list, abort_on_error=True, copy_dir = None, prepend_file_str = None):
+        ''' repo_file_list is a list of files that should exist in the repo directory. 
+        copy_dir : the directory to copy the file should the file exist
+        prepend_file_str : a string to prepend to the file name when copying '''
         super().__init__(abort_on_error)
         self.repo_file_list = repo_file_list
+        self.copy_dir = copy_dir
+        self.prepend_file_str = prepend_file_str
 
     def module_name(self):
         name_str = "Files Exist: "
@@ -177,12 +184,31 @@ class file_exists_test(repo_test):
 
     def perform_test(self, repo_test_suite):
         return_val = True
+        existing_files = []
         for repo_file in self.repo_file_list:
             file_path = repo_test_suite.working_path / repo_file
             if not os.path.exists(file_path):
                 repo_test_suite.print_error(f'File does not exist: {file_path}')
                 return_val = False
-            repo_test_suite.print(f'File exists: {file_path}')
+            else:
+                repo_test_suite.print(f'File exists: {file_path}')
+                existing_files.append(file_path)
+        if self.copy_dir is not None:
+            # Copy files to the copy directory
+            if not os.path.exists(self.copy_dir):
+                repo_test_suite.print_error(f'Copy directory does not exist: {self.copy_dir}')
+            else:
+                for orig_filename in existing_files:
+                    if self.prepend_file_str is not None:
+                        new_filename = f'{self.prepend_file_str}{orig_filename}'
+                    else:
+                        new_filename = orig_filename
+                    new_file_path = self.copy_dir / new_filename
+                    try:
+                        os.copyfile(orig_filename, new_file_path)
+                        repo_test_suite.print(f'Copied {orig_filename} to {new_file_path}')
+                    except Exception as e:
+                        repo_test_suite.print_error(f'Error copying file {orig_filename} to {new_file_path}: {e}')
         if return_val:
             return self.success_result()
         return self.error_result()

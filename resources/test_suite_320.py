@@ -8,23 +8,36 @@ import repo_test
 from repo_test_suite import repo_test_suite
 
 # ToDo:
-# - Provide a way for having the simulation environment return an error when the testbench fails
-# - Check to see if the starter code has been updated (to match the date of the tag)
+# - Copy build files to a temporary directory before running clean
+# - Add ability to checkout entire repository to a temporary directory and run the script on that directory rather than the local directory
 # - For uncommitted files, should we only check for the current directory or the entire repo?
+# - Check to see if the starter code has been updated (to match the date of the tag)
+# - Provide a way for having the simulation environment return an error when the testbench fails
 
 class test_suite_320(repo_test_suite):
+    """ 
+    Represents a suite of tests to perform on a ECEN 320 repository. The tests are divided into several
+    categories that are executed in a specific order:
+        self.repo_tests: Tests that are run on the repository to check for integrity (before build)
+        self.build_tests: Tests that are run involving a build process (generates temporary files, etc.)
+        self.post_build_tests: Tests that are run after the build and before the clean (used for checking)
+        self.clean_tests: Tests used to clean up and check the repository
+    """
 
     def __init__(self, repo, assignment_name, max_repo_files = 20, summary_log_filename = None):
-        # Reference to the Git repository
-        super().__init__(repo,test_name = assignment_name, summary_log_filename = summary_log_filename)
+        super().__init__(repo, test_name = assignment_name, summary_log_filename = summary_log_filename)
         self.repo_tests = []
         self.build_tests = []
+        self.post_build_tests = []
         self.clean_tests = []
         self.add_repo_tests(max_repo_files, tag_str = assignment_name)
         self.add_clean_tests()
         self.run_repo_tests = True
         self.run_build_tests = True
+        self.run_post_build_tests = True
         self.run_clean_tests = True
+        self.copy_file_dir = None # Location to copy generated build files
+        self.prepend_file_str = None # String to prepend to the file name when copying
 
     def add_repo_tests(self, max_repo_files, tag_str = None, 
                        list_git_commits = True, check_start_code = False, min_err_commits = None ):
@@ -48,11 +61,14 @@ class test_suite_320(repo_test_suite):
     def add_repo_test(self,test):
         self.repo_tests.append(test)
 
-    def add_clean_test(self,test):
-        self.clean_tests.append(test)
-
     def add_build_test(self,test):
         self.build_tests.append(test)
+
+    def add_post_build_test(self,test):
+        self.post_build_tests.append(test)
+
+    def add_clean_test(self,test):
+        self.clean_tests.append(test)
 
     def add_filegen_test(self,gen_file_list):
         ''' Add tests to see if a file was generated and if the file is not committed in the repo '''
@@ -68,8 +84,15 @@ class test_suite_320(repo_test_suite):
         make_test = repo_test.make_test(make_rule,timeout_seconds=timeout_seconds)
         self.add_build_test(make_test)
 
+    def add_file_check(self, file_list, copy_dir = None, prepend_file_str = None):
+        ''' Add a test to check if a set of files exist after the build and then
+        optionally copy the files to a directory '''
+        self.add_post_build_test(repo_test.file_exists_test(file_list, 
+                copy_dir = copy_dir, prepend_file_str = prepend_file_str))
+
     def run_tests(self):
-        ''' Run all the registered tests '''
+        """ Run all the registered tests in the test suite.
+        """
         self.print_test_start_message()
         test_num = 1
         if self.run_repo_tests:
@@ -78,18 +101,25 @@ class test_suite_320(repo_test_suite):
         if self.run_build_tests:
             self.iterate_through_tests(self.build_tests, start_step = test_num)
             test_num += len(self.build_tests) 
+        if self.run_post_build_tests:
+            self.iterate_through_tests(self.post_build_tests, start_step = test_num)
+            test_num += len(self.build_tests) 
         if self.run_clean_tests:
             self.iterate_through_tests(self.clean_tests, start_step = test_num)
             test_num += len(self.clean_tests) 
         self.print_test_end_message()
 
 def build_test_suite_320(assignment_name, max_repo_files = 20):
+    """ A helper function used by 'main' functions to build a test suite based on command line arguments.
+    """
     parser = argparse.ArgumentParser(description=f"Test suite for 320 Assignment: {assignment_name}")
-    parser.add_argument("--repo", help="Path to the repository to test (default is current directory)")
+    parser.add_argument("--repo", help="Path to the local repository to test (default is current directory)")
     parser.add_argument("--norepo", action="store_true", help="Do not run Repo tests")
     parser.add_argument("--nobuild", action="store_true", help="Do not run build tests")
     parser.add_argument("--noclean", action="store_true", help="Do not run clean tests")
     parser.add_argument("--log", type=str, help="Save output to a log file (relative file path)")
+    parser.add_argument("--copy", type=str, help="Copy generated files to a directory")
+    parser.add_argument("--copy_file_str", type=str, help="Customized the copy file by prepending filenames with given string")
     args=parser.parse_args()
 
     # Get repo
@@ -98,6 +128,7 @@ def build_test_suite_320(assignment_name, max_repo_files = 20):
     else:
         path = args.repo
     repo = git.Repo(path, search_parent_directories=True)
+
     # Log file
     summary_log_filename = None
     if args.log is not None:
@@ -106,13 +137,18 @@ def build_test_suite_320(assignment_name, max_repo_files = 20):
     # Build test suite
     test_suite = test_suite_320(repo, assignment_name,
         max_repo_files = max_repo_files, summary_log_filename = summary_log_filename)
-
+    # Decide which tests to run
     if args.norepo:
         test_suite.run_repo_tests = False
     if args.nobuild:
         test_suite.run_build_tests = False
     if args.noclean:
         test_suite.run_clean_tests = False
+    # See if a copy of the build files are needed and if so, customize the copy
+    if args.copy:
+        test_suite.copy_file_dir = args.copy
+        if args.copy_file_str:
+            test_suite.prepend_file_str = args.copy_file_str
     return test_suite
 
 class get_err_git_commits(repo_test.repo_test):
