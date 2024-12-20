@@ -3,6 +3,7 @@
 import argparse
 import os
 import git
+import shutil
 
 import repo_test
 from repo_test_suite import repo_test_suite
@@ -54,6 +55,7 @@ class test_suite_320(repo_test_suite):
             self.add_repo_test(repo_test.check_for_tag(tag_str))
 
     def add_clean_tests(self):
+        """ Add three repo clean tests (untracked files, make clean, and ignored files) """
         self.add_clean_test(repo_test.check_for_untracked_files())
         self.add_clean_test(repo_test.make_test("clean"))
         self.add_clean_test(repo_test.check_for_ignored_files())
@@ -70,25 +72,21 @@ class test_suite_320(repo_test_suite):
     def add_clean_test(self,test):
         self.clean_tests.append(test)
 
-    def add_filegen_test(self,gen_file_list):
-        ''' Add tests to see if a file was generated and if the file is not committed in the repo '''
-        # Add test to see if the file was generated (in the current working directory)
-        check_file_test = repo_test.file_exists_test(gen_file_list)
-        self.add_build_test(check_file_test)
-        # Add test to make sure the file is not committed in the repository
-        non_committed_files_test = repo_test.file_not_tracked_test(gen_file_list)
-        self.add_build_test(non_committed_files_test)
-
     def add_make_test(self,make_rule,timeout_seconds = 10*60):
         ''' Add a makefile rule test '''
         make_test = repo_test.make_test(make_rule,timeout_seconds=timeout_seconds)
         self.add_build_test(make_test)
 
-    def add_file_check(self, file_list, copy_dir = None, prepend_file_str = None):
-        ''' Add a test to check if a set of files exist after the build and then
-        optionally copy the files to a directory '''
-        self.add_post_build_test(repo_test.file_exists_test(file_list, 
-                copy_dir = copy_dir, prepend_file_str = prepend_file_str))
+    def add_file_checks(self, file_list, check_files_not_tracked = True):
+        ''' Add tests to see if a file was generated. Optionally check to make sure it is not committed in the
+         repo and copy the file. '''
+        # Add test to see if the file was generated (in the current working directory)
+        check_file_test = repo_test.file_exists_test(file_list, copy_dir = self.copy_file_dir, prepend_file_str = self.prepend_file_str)
+        self.add_post_build_test(check_file_test)
+        # Add test to make sure the file is not committed in the repository
+        if check_files_not_tracked:
+            non_committed_files_test = repo_test.file_not_tracked_test(file_list)
+            self.add_post_build_test(non_committed_files_test)
 
     def run_tests(self):
         """ Run all the registered tests in the test suite.
@@ -147,6 +145,7 @@ def build_test_suite_320(assignment_name, max_repo_files = 20):
     # See if a copy of the build files are needed and if so, customize the copy
     if args.copy:
         test_suite.copy_file_dir = args.copy
+        print(f"Copying files to {args.copy}")
         if args.copy_file_str:
             test_suite.prepend_file_str = args.copy_file_str
     return test_suite

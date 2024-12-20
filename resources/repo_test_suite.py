@@ -140,7 +140,7 @@ class repo_test_suite():
             else:
                 errors.append(result)
         if len(warnings) == 0 and len(errors) == 0:
-            self.print_test_status(f"  No errors or warnings")
+            self.print_test_status("  No errors or warnings")
         else:
             if len(warnings) != 0:
                 self.print_error(f" {len(warnings)} Warnings")

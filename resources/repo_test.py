@@ -17,6 +17,7 @@ import time
 import threading
 import queue
 import pathlib
+import shutil
 
 #########################################################3
 # Base repo test classes
@@ -167,7 +168,7 @@ class file_exists_test(repo_test):
     for later review.
     '''
 
-    def __init__(self, repo_file_list, abort_on_error=True, copy_dir = None, prepend_file_str = None):
+    def __init__(self, repo_file_list, abort_on_error=True, copy_dir = None, prepend_file_str = None, force_copy = True):
         ''' repo_file_list is a list of files that should exist in the repo directory. 
         copy_dir : the directory to copy the file should the file exist
         prepend_file_str : a string to prepend to the file name when copying '''
@@ -175,6 +176,7 @@ class file_exists_test(repo_test):
         self.repo_file_list = repo_file_list
         self.copy_dir = copy_dir
         self.prepend_file_str = prepend_file_str
+        self.force_copy = force_copy
 
     def module_name(self):
         name_str = "Files Exist: "
@@ -198,14 +200,23 @@ class file_exists_test(repo_test):
             if not os.path.exists(self.copy_dir):
                 repo_test_suite.print_error(f'Copy directory does not exist: {self.copy_dir}')
             else:
-                for orig_filename in existing_files:
+                print(f'Copying files to {self.copy_dir}')
+                for orig_filepath in existing_files:
+                    orig_filename = orig_filepath.name
                     if self.prepend_file_str is not None:
                         new_filename = f'{self.prepend_file_str}{orig_filename}'
                     else:
                         new_filename = orig_filename
-                    new_file_path = self.copy_dir / new_filename
+                    new_file_path = pathlib.Path(self.copy_dir) / new_filename
                     try:
-                        os.copyfile(orig_filename, new_file_path)
+                        # see if target file already exists
+                        if os.path.exists(new_file_path):
+                            if self.force_copy:
+                                os.remove(new_file_path)
+                            else:
+                                repo_test_suite.print_error(f'File already exists in copy directory: {new_file_path}')
+                                continue
+                        shutil.copy2(orig_filename, new_file_path)
                         repo_test_suite.print(f'Copied {orig_filename} to {new_file_path}')
                     except Exception as e:
                         repo_test_suite.print_error(f'Error copying file {orig_filename} to {new_file_path}: {e}')
