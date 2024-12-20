@@ -283,6 +283,31 @@ class make_test(repo_test):
             return self.error_result()
         return self.success_result()
 
+class execs_exist_test(repo_test):
+    ''' Determines whether an executable exists in the path (like unix)
+    '''
+
+    def __init__(self, executables, abort_on_error=True):
+        super().__init__(abort_on_error=abort_on_error)
+        self.executables = executables
+
+    def module_name(self):
+        name_str = "Executables Exist: "
+        for executable in self.executables:
+            name_str += f'{executable}, '
+        return name_str[:-2] # Remove the last two characters (', ')
+
+    def perform_test(self, repo_test_suite):
+        return_val = True
+        for executable in self.executables:
+            cmd = ["which", self.self.executable]
+            which_val = self.execute_command(repo_test_suite, cmd)
+            if which_val != 0:
+                return_val = False
+        if not return_val:
+            return self.error_result()
+        return self.success_result()
+
 #########################################################3
 # Git repo test classes
 #########################################################3

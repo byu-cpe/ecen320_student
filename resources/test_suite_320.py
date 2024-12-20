@@ -9,50 +9,57 @@ import repo_test
 from repo_test_suite import repo_test_suite
 
 # ToDo:
-# - Copy build files to a temporary directory before running clean
+# - Check to see if an executable exists
+# - Check to see if any files in the current "main" are changed from the tag. If so, give a warning (i.e., tag out of date)
+# - Add auto tagging (so they don't have to do it themselves) (--submit flag?)
 # - Add ability to checkout entire repository to a temporary directory and run the script on that directory rather than the local directory
+# - Check to see if the starter code has been updated (to match the date of the tag or main if there is no tag)
 # - For uncommitted files, should we only check for the current directory or the entire repo?
-# - Check to see if the starter code has been updated (to match the date of the tag)
 # - Provide a way for having the simulation environment return an error when the testbench fails
 
 class test_suite_320(repo_test_suite):
     """ 
     Represents a suite of tests to perform on a ECEN 320 repository. The tests are divided into several
     categories that are executed in a specific order:
-        self.repo_tests: Tests that are run on the repository to check for integrity (before build)
+        self.pre_build_tests: Tests that are run on the repository to check for integrity (before build)
         self.build_tests: Tests that are run involving a build process (generates temporary files, etc.)
         self.post_build_tests: Tests that are run after the build and before the clean (used for checking)
         self.clean_tests: Tests used to clean up and check the repository
     """
 
-    def __init__(self, repo, assignment_name, max_repo_files = 20, summary_log_filename = None):
+    def __init__(self, repo, assignment_name, max_repo_files = 20, summary_log_filename = None,
+                 required_executables = None):
         super().__init__(repo, test_name = assignment_name, summary_log_filename = summary_log_filename)
-        self.repo_tests = []
+        self.pre_build_tests = []
         self.build_tests = []
         self.post_build_tests = []
         self.clean_tests = []
-        self.add_repo_tests(max_repo_files, tag_str = assignment_name)
+        self.add_pre_build_tests(max_repo_files, tag_str = assignment_name)
         self.add_clean_tests()
-        self.run_repo_tests = True
+        self.run_pre_build_tests = True
         self.run_build_tests = True
         self.run_post_build_tests = True
         self.run_clean_tests = True
         self.copy_file_dir = None # Location to copy generated build files
         self.prepend_file_str = None # String to prepend to the file name when copying
+        self.required_executables = required_executables
 
-    def add_repo_tests(self, max_repo_files, tag_str = None, 
-                       list_git_commits = True, check_start_code = False, min_err_commits = None ):
-        # Tests involved with checking the integrity and requirements of the repository
+    def add_pre_build_tests(self, max_repo_files, tag_str = None, 
+                       list_git_commits = True, check_start_code = False, min_err_commits = None,
+                       required_executables = None):
+        """ Add default tests that should be executed before any building. """
         if list_git_commits:
-            self.add_repo_test(repo_test.list_git_commits())
+            self.add_pre_build_test(repo_test.list_git_commits())
         if min_err_commits is not None:
-            self.add_repo_test(get_err_git_commits(min_err_commits))
-        self.add_repo_test(repo_test.check_for_uncommitted_files())
-        self.add_repo_test(repo_test.check_for_max_repo_files(max_repo_files))
+            self.add_pre_build_test(get_err_git_commits(min_err_commits))
+        self.add_pre_build_test(repo_test.check_for_uncommitted_files())
+        self.add_pre_build_test(repo_test.check_for_max_repo_files(max_repo_files))
         if check_start_code:
-            self.add_repo_test(repo_test.check_remote_updates("startercode"))
+            self.add_pre_build_test(repo_test.check_remote_updates("startercode"))
         if tag_str is not None:
-            self.add_repo_test(repo_test.check_for_tag(tag_str))
+            self.add_pre_build_test(repo_test.check_for_tag(tag_str))
+        if required_executables is not None:
+            self.add_pre_build_test(repo_test.execs_exist_test(required_executables))
 
     def add_clean_tests(self):
         """ Add three repo clean tests (untracked files, make clean, and ignored files) """
@@ -60,8 +67,8 @@ class test_suite_320(repo_test_suite):
         self.add_clean_test(repo_test.make_test("clean"))
         self.add_clean_test(repo_test.check_for_ignored_files())
 
-    def add_repo_test(self,test):
-        self.repo_tests.append(test)
+    def add_pre_build_test(self,test):
+        self.pre_build_tests.append(test)
 
     def add_build_test(self,test):
         self.build_tests.append(test)
@@ -93,9 +100,9 @@ class test_suite_320(repo_test_suite):
         """
         self.print_test_start_message()
         test_num = 1
-        if self.run_repo_tests:
-            self.iterate_through_tests(self.repo_tests, start_step = test_num)
-            test_num += len(self.repo_tests) 
+        if self.run_pre_build_tests:
+            self.iterate_through_tests(self.pre_build_tests, start_step = test_num)
+            test_num += len(self.pre_build_tests) 
         if self.run_build_tests:
             self.iterate_through_tests(self.build_tests, start_step = test_num)
             test_num += len(self.build_tests) 
@@ -137,7 +144,7 @@ def build_test_suite_320(assignment_name, max_repo_files = 20):
         max_repo_files = max_repo_files, summary_log_filename = summary_log_filename)
     # Decide which tests to run
     if args.norepo:
-        test_suite.run_repo_tests = False
+        test_suite.run_pre_build_tests = False
     if args.nobuild:
         test_suite.run_build_tests = False
     if args.noclean:
