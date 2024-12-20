@@ -13,7 +13,7 @@ import test_suite_320
 import repo_test
 
 def main():
-    tester = test_suite_320.build_test_suite_320("lab02", max_repo_files = 10)
+    tester = test_suite_320.build_test_suite_320("lab02", max_repo_files = 15)
     # Add a test that checks to make sure the vivado tools are available in the executing environment
     #  (check_exec_test)
     # tester.add_make_test("about")
