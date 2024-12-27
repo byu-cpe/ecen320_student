@@ -260,10 +260,19 @@ class file_not_tracked_test(repo_test):
         return self.error_result()
 
 class make_test(repo_test):
-    ''' Executes a makefile rule in the repository.
+    ''' Executes a Makefile rule in the repository.
+
+    make_rule: string representing the makefile rule to execute.
+    required_input_files: list of files that should exist before the make rule is executed.
+    check_build_files: list of files that should be created after the make rule is executed. These files will be checked.
+    generate_output_file: if True, an output file will be generated with the make output.
+    make_output_filename: the name of the output file. If None, a default name will be generated.
+    abort_on_error: if True, the test will abort if the make rule fails.
+    timeout_seconds: the number of seconds before the test will timeout.
     '''
 
-    def __init__(self, make_rule, generate_output_file = True, make_output_filename=None,
+    def __init__(self, make_rule, required_input_files = None, required_build_files = None, 
+                 generate_output_file = True, make_output_filename=None,
                  abort_on_error=True, timeout_seconds = 60):
         ''' make_rule is the string makefile rule that is executed. '''
         if generate_output_file and make_output_filename is None:
@@ -272,16 +281,40 @@ class make_test(repo_test):
         super().__init__(abort_on_error=abort_on_error, process_output_filename=make_output_filename,
             timeout_seconds=timeout_seconds)
         self.make_rule = make_rule
+        self.required_input_files = required_input_files
+        self.required_build_files = required_build_files
 
     def module_name(self):
-        return f"Makefile: 'make {self.make_rule}'"
+        name_str = f"Makefile: 'make {self.make_rule}'"
+        if self.check_build_files is not None and len(self.check_build_files) > 0:  
+            name_str += " ["
+            for build_file in self.check_build_files:
+                name_str += f'{build_file}, '
+            name_str = name_str[:-2]
+            name_str += "]"
+        return name_str
 
     def perform_test(self, repo_test_suite):
+        # Check to see if the required input files exist
+        if self.required_input_files is not None and len(self.required_input_files) > 0:
+            for file in self.required_input_files:
+                if not os.path.exists(file):
+                    repo_test_suite.print_error(f" Required file for Makefile rule '{self.make_rule}' does not exist: {file}")
+                    return self.error_result()
+        # Run the rule
         cmd = ["make", self.make_rule]
-        return_val = self.execute_command(repo_test_suite, cmd)
-        if return_val != 0:
+        make_return_val = self.execute_command(repo_test_suite, cmd)
+        # Check to see if the make rule was successful
+        if make_return_val != 0:
             return self.error_result()
-        return self.success_result()
+        result = self.success_result()
+        # Check to see if the build files exist
+        if self.required_build_files is not None and len(self.required_build_files) > 0:
+            for file in self.check_build_files:
+                if not os.path.exists(file):
+                    repo_test_suite.print_warning(f' Expected build file does not exist: {file}')
+                    result = self.warning_result()
+        return result
 
 class execs_exist_test(repo_test):
     ''' Determines whether an executable exists in the path (like unix)

@@ -9,13 +9,25 @@ import repo_test
 from repo_test_suite import repo_test_suite
 
 # ToDo:
-# - Check to see if an executable exists
-# - Check to see if any files in the current "main" are changed from the tag. If so, give a warning (i.e., tag out of date)
-# - Add auto tagging (so they don't have to do it themselves) (--submit flag?)
-# - Add ability to checkout entire repository to a temporary directory and run the script on that directory rather than the local directory
-# - Check to see if the starter code has been updated (to match the date of the tag or main if there is no tag)
-# - For uncommitted files, should we only check for the current directory or the entire repo?
-# - Provide a way for having the simulation environment return an error when the testbench fails
+# - Lab check script:
+#   - Check to see if an executable exists (such as vivado). Exit on error.
+#   - Check to see if any files in the current "main" are changed from the tag. If so, give a warning (i.e., tag out of date)
+#   - Check to see if the starter code has been updated (to match the date of the tag or main if there is no tag)
+#     - Compare the starter code to the existing code (manually change stater code?)
+#   - For uncommitted files, should we only check for the current directory or the entire repo?
+#   - Provide a way for having the simulation environment return an error when the testbench fails
+#   - Check to see if the committed changes have been pushed to the remote repository
+# - Create a separate "lab_passoff" script that performs the tag and remote checkoug:
+#   - Automatically tags the repository
+#   - Add auto tagging (so they don't have to do it themselves) (--submit flag?)
+#   - Checks out the repository in a temporary directory and runs the lab check script
+#   - Add ability to checkout entire repository to a temporary directory and run the script on that directory rather than the local directory
+
+# Script changes:
+# * flag to do a remote check like the TAs would do (default is local)
+# * A step that sees if the starter code was updated as of the day the lab started
+# * Flag to copy intermediate files during build before the clean occurs
+# * Instructions on the passoff script
 
 class test_suite_320(repo_test_suite):
     """ 
@@ -79,7 +91,7 @@ class test_suite_320(repo_test_suite):
     def add_clean_test(self,test):
         self.clean_tests.append(test)
 
-    def add_make_test(self,make_rule,timeout_seconds = 10*60):
+    def add_Makefile_rule(self, make_rule, required_build_files = [], timeout_seconds = 10 * 60):
         ''' Add a makefile rule test '''
         make_test = repo_test.make_test(make_rule,timeout_seconds=timeout_seconds)
         self.add_build_test(make_test)
@@ -114,10 +126,11 @@ class test_suite_320(repo_test_suite):
             test_num += len(self.clean_tests) 
         self.print_test_end_message()
 
-def build_test_suite_320(assignment_name, max_repo_files = 20):
+def build_test_suite_320(assignment_name, max_repo_files = 20, start_date = None):
     """ A helper function used by 'main' functions to build a test suite based on command line arguments.
     """
     parser = argparse.ArgumentParser(description=f"Test suite for 320 Assignment: {assignment_name}")
+    parser.add_argument("--submit", help="Submit the assignment to the remote repository (tag and push)")
     parser.add_argument("--repo", help="Path to the local repository to test (default is current directory)")
     parser.add_argument("--norepo", action="store_true", help="Do not run Repo tests")
     parser.add_argument("--nobuild", action="store_true", help="Do not run build tests")

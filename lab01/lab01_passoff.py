@@ -13,13 +13,15 @@ import test_suite_320
 import repo_test
 
 def main():
-    tester = test_suite_320.build_test_suite_320("lab01", max_repo_files = 10)
-    tester.add_make_test("about")
-    tester.add_make_test("reverse")
-    tester.add_make_test("upper")
-    tester.add_make_test("lineno")
-    tester.add_make_test("bottom")
-    tester.add_file_checks(["reverse.txt", "upper.txt", "upper.txt", "lineno.txt", "bottom.txt"])
+    # start_date is used as the "freeze" date for the starter code. Make sure they have the starter code before this date.
+    tester = test_suite_320.build_test_suite_320("lab01", start_date="09/01/2021")
+    tester.required_files(["aboutme.txt", "netid.jpg"]) # Makefile is assumed
+    tester.add_Makefile_rule("about")
+    tester.add_Makefile_rule("reverse", ["reverse.txt"])
+    tester.add_Makefile_rule("upper", ["upper.txt"])
+    tester.add_Makefile_rule("lineno", ["lineno.txt"])
+    tester.add_Makefile_rule("bottom", ["bottom.txt"])
+    # tester.postbuild_file_checks(["reverse.txt", "upper.txt", "upper.txt", "lineno.txt", "bottom.txt"])
     tester.run_tests()
 
 if __name__ == "__main__":
