@@ -16,7 +16,7 @@ module binary_adder (
     xor(led[0], sw[0], sw[2]);              // led[0] = sw[0] xor sw[2]
     and(carry[0], sw[0], sw[2]);            // carry[0] = sw[0] and sw[2]
     // Bit 1 sum and carry
-    xor(led[1], sw[1], sw[3]), carry[0];    // led[1] = sw[1] xor sw[3] xor carry[0]
+    xor(led[1], sw[1], sw[3], carry[0]);    // led[1] = sw[1] xor sw[3] xor carry[0]
     and(co1, sw[1], sw[3]);                 // carry[1] = sw[1] and sw[3]
     and(co2, sw[1], carry[0]);              // carry[1] = sw[1] and sw[3]
     and(co3, sw[3], carry[0]);              // carry[1] = sw[1] and sw[3]
