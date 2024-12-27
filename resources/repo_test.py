@@ -252,7 +252,42 @@ class file_not_tracked_test(repo_test):
             #print("checking",not_tracked_file)
             # Check to make sure this file is not tracked
             if not_tracked_file in tracked_dir_filenames:
-                repo_test_suite.print_error(f'File should NOT be tracked in the repository: {file_path}')
+                repo_test_suite.print_error(f'File should NOT be tracked in the repository: {not_tracked_file}')
+                #print(repo_test_suite.repo.untracked_files)
+                return_val = False
+        if return_val:
+            return self.success_result()
+        return self.error_result()
+
+class files_tracked_test(repo_test):
+    ''' Checks to see if a given file is 'not tracked' in the repository.
+    This is usually used to test for files that are created during the
+    build and not meant for tracking in the repository.
+    '''
+
+    def __init__(self, files_tracked_list):
+        super().__init__()
+        self.files_tracked_list = files_tracked_list
+
+    def module_name(self):
+        name_str = "Files Tracked: "
+        for repo_file in self.files_tracked_list:
+            name_str += f'{repo_file}, '
+        return name_str[:-2] # Remove the last two characters (', ')
+
+    def perform_test(self, repo_test_suite):
+        return_val = True
+        test_dir = repo_test_suite.working_path
+        tracked_dir_files = repo_test_suite.repo.git.ls_files(test_dir).splitlines()
+        # Get the filenames from the full path
+        tracked_dir_filenames = [pathlib.Path(file).name for file in tracked_dir_files]
+        #print(tracked_dir_filenames)
+        for tracked_file in self.files_tracked_list:
+            #file_path = repo_test_suite.working_path / repo_file
+            #print("checking",not_tracked_file)
+            # Check to make sure this file is not tracked
+            if tracked_file not in tracked_dir_filenames:
+                repo_test_suite.print_error(f'File should be tracked in the repository: {tracked_file}')
                 #print(repo_test_suite.repo.untracked_files)
                 return_val = False
         if return_val:
@@ -286,9 +321,14 @@ class make_test(repo_test):
 
     def module_name(self):
         name_str = f"Makefile: 'make {self.make_rule}'"
-        if self.check_build_files is not None and len(self.check_build_files) > 0:  
+        if self.required_input_files is not None and len(self.required_input_files) > 0:
+            name_str += " required: "
+            for required_file in self.required_input_files:
+                name_str += f'{required_file}, '
+            name_str = name_str[:-2]
+        if self.required_build_files is not None and len(self.required_build_files) > 0:  
             name_str += " ["
-            for build_file in self.check_build_files:
+            for build_file in self.required_build_files:
                 name_str += f'{build_file}, '
             name_str = name_str[:-2]
             name_str += "]"
@@ -310,9 +350,9 @@ class make_test(repo_test):
         result = self.success_result()
         # Check to see if the build files exist
         if self.required_build_files is not None and len(self.required_build_files) > 0:
-            for file in self.check_build_files:
+            for file in self.required_build_files:
                 if not os.path.exists(file):
-                    repo_test_suite.print_warning(f' Expected build file does not exist: {file}')
+                    repo_test_suite.print_error(f' Expected build file does not exist: {file}')
                     result = self.warning_result()
         return result
 

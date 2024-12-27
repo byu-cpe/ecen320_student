@@ -10,18 +10,28 @@ from repo_test_suite import repo_test_suite
 
 # ToDo:
 # - Lab check script:
-#   - Check to see if an executable exists (such as vivado). Exit on error.
-#   - Check to see if any files in the current "main" are changed from the tag. If so, give a warning (i.e., tag out of date)
 #   - Check to see if the starter code has been updated (to match the date of the tag or main if there is no tag)
 #     - Compare the starter code to the existing code (manually change stater code?)
 #   - For uncommitted files, should we only check for the current directory or the entire repo?
 #   - Provide a way for having the simulation environment return an error when the testbench fails
 #   - Check to see if the committed changes have been pushed to the remote repository
-# - Create a separate "lab_passoff" script that performs the tag and remote checkoug:
-#   - Automatically tags the repository
-#   - Add auto tagging (so they don't have to do it themselves) (--submit flag?)
-#   - Checks out the repository in a temporary directory and runs the lab check script
-#   - Add ability to checkout entire repository to a temporary directory and run the script on that directory rather than the local directory
+#   - Check to see if an executable exists (such as vivado). Exit on error. (lab 2)
+# - tag flag
+#   - The tag flag is used to checkout a specific tag before running the script. This is used to check out the code at the time of submission and run
+#     It is different from the submit flag in that it does not actually tag the repository. Used for grading and checking code without resubmitting.
+# - Submit Flag
+#   - Check to see if there are any modified tracked files that need to be committed. If so, exit with error saying that all files must be committed before submission.
+#     (this is necessary so that we can checkout the tag and not overwrite existing changes)
+#   - Check to see if the starter code has been updated (to match the date of the start of the assignment). If not, exit with error saying they need to udpate the starter cord
+#     Provide code to automatically update with the starter code?
+#   - Check to see if the files in the starter code have been changed locally. If so, exit with error saying they need to revert their starter code to the original.
+#   - Check to see if there is a tag for the current assignment. 
+#     - If not, tag the repository, push the tag to the remote. (ask for permission first unless '--force' flag is given)
+#     - If there is a tag:
+#       - Check to see if the tag code is different from the current commit. If not, exit saying it is already tagged and ready to submit
+#       - If the code is different, ask for permission to retag and push the tag to the remote. (ask for permission first unless '--force' flag is given)
+#   - Other:
+#     - Add ability to checkout entire repository to a temporary directory and run the script on that directory rather than the local directory
 
 # Script changes:
 # * flag to do a remote check like the TAs would do (default is local)
@@ -46,7 +56,8 @@ class test_suite_320(repo_test_suite):
         self.build_tests = []
         self.post_build_tests = []
         self.clean_tests = []
-        self.add_pre_build_tests(max_repo_files, tag_str = assignment_name)
+        #self.add_pre_build_tests(max_repo_files, tag_str = assignment_name)
+        self.add_pre_build_tests(max_repo_files)  # Check tag as part of submit flag
         self.add_clean_tests()
         self.run_pre_build_tests = True
         self.run_build_tests = True
@@ -57,7 +68,7 @@ class test_suite_320(repo_test_suite):
         self.required_executables = required_executables
 
     def add_pre_build_tests(self, max_repo_files, tag_str = None, 
-                       list_git_commits = True, check_start_code = False, min_err_commits = None,
+                       list_git_commits = False, check_start_code = False, min_err_commits = None,
                        required_executables = None):
         """ Add default tests that should be executed before any building. """
         if list_git_commits:
@@ -91,14 +102,17 @@ class test_suite_320(repo_test_suite):
     def add_clean_test(self,test):
         self.clean_tests.append(test)
 
-    def add_Makefile_rule(self, make_rule, required_build_files = [], timeout_seconds = 10 * 60):
+    def add_Makefile_rule(self, make_rule, required_input_files = [], required_build_files = [], timeout_seconds = 10 * 60):
         ''' Add a makefile rule test '''
-        make_test = repo_test.make_test(make_rule,timeout_seconds=timeout_seconds)
+        make_test = repo_test.make_test(make_rule, required_input_files = required_input_files, 
+                                        required_build_files = required_build_files,
+                                        timeout_seconds=timeout_seconds)
         self.add_build_test(make_test)
 
-    def add_file_checks(self, file_list, check_files_not_tracked = True):
-        ''' Add tests to see if a file was generated. Optionally check to make sure it is not committed in the
-         repo and copy the file. '''
+    def add_required_files(self, file_list, check_files_not_tracked = False, check_tracked_files = False):
+        ''' Add tests to see if a file exists.
+        Optionally check to make sure it is not committed in the repo (for build files)
+        optionally check to make sure it is committed in the repo (for required files) '''
         # Add test to see if the file was generated (in the current working directory)
         check_file_test = repo_test.file_exists_test(file_list, copy_dir = self.copy_file_dir, prepend_file_str = self.prepend_file_str)
         self.add_post_build_test(check_file_test)
@@ -106,6 +120,12 @@ class test_suite_320(repo_test_suite):
         if check_files_not_tracked:
             non_committed_files_test = repo_test.file_not_tracked_test(file_list)
             self.add_post_build_test(non_committed_files_test)
+        if check_tracked_files:
+            committed_files_test = repo_test.files_tracked_test(file_list)
+            self.add_post_build_test(committed_files_test)
+
+    def add_required_tracked_files(self, file_list):
+        self.add_required_files(file_list, check_tracked_files = True)
 
     def run_tests(self):
         """ Run all the registered tests in the test suite.
