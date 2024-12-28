@@ -53,13 +53,17 @@ class test_suite_320(repo_test_suite):
     def __init__(self, repo, assignment_name, max_repo_files = 20, summary_log_filename = None,
                  required_executables = None, submit = False):
         super().__init__(repo, test_name = assignment_name, summary_log_filename = summary_log_filename)
+        # Initialize the sets of tests
+        self.repo_tests = []
         self.pre_build_tests = []
         self.build_tests = []
         self.post_build_tests = []
         self.clean_tests = []
         #self.add_pre_build_tests(max_repo_files, tag_str = assignment_name)
-        self.add_pre_build_tests(max_repo_files, remote_branch = "devel")
+        self.add_repo_tests(max_repo_files, remote_branch = "devel")
+        self.add_pre_build_tests()
         self.add_clean_tests()
+
         self.run_pre_build_tests = True
         self.run_build_tests = True
         self.run_post_build_tests = True
@@ -69,16 +73,21 @@ class test_suite_320(repo_test_suite):
         self.required_executables = required_executables
         self.perform_submit = submit
 
-    def add_pre_build_tests(self, max_repo_files, tag_str = None, check_start_code = True, 
+    def add_repo_tests(self, max_repo_files, tag_str = None, check_start_code = True, 
                             required_executables = None, remote_branch = "main"):
-        """ Add default tests that should be executed before any building. """
-        self.add_pre_build_test(repo_test.check_for_uncommitted_files())
-        self.add_pre_build_test(repo_test.check_remote_origin())
-        self.add_pre_build_test(repo_test.check_for_max_repo_files(max_repo_files))
+        """ Add tests that check the state of the repo """
+        self.add_repo_test(repo_test.check_for_uncommitted_files())
+        self.add_repo_test(repo_test.check_remote_origin())
+        self.add_repo_test(repo_test.check_for_max_repo_files(max_repo_files))
         if check_start_code:
-            self.add_pre_build_test(repo_test.check_remote_starter("startercode", remote_branch = remote_branch))
+            self.add_repo_test(repo_test.check_remote_starter("startercode", remote_branch = remote_branch))
         if tag_str is not None:
-            self.add_pre_build_test(repo_test.check_for_tag(tag_str))
+            self.add_repo_test(repo_test.check_for_tag(tag_str))
+        if required_executables is not None:
+            self.add_repo_test(repo_test.execs_exist_test(required_executables))
+
+    def add_pre_build_tests(self, required_executables = None):
+        """ Add default tests that should be executed before any building. """
         if required_executables is not None:
             self.add_pre_build_test(repo_test.execs_exist_test(required_executables))
 
@@ -87,6 +96,9 @@ class test_suite_320(repo_test_suite):
         self.add_clean_test(repo_test.check_for_untracked_files())
         self.add_clean_test(repo_test.make_test("clean"))
         self.add_clean_test(repo_test.check_for_ignored_files())
+
+    def add_repo_test(self,test):
+        self.repo_tests.append(test)
 
     def add_pre_build_test(self,test):
         self.pre_build_tests.append(test)
@@ -128,40 +140,67 @@ class test_suite_320(repo_test_suite):
     def run_tests(self):
         """ Run all the registered tests in the test suite.
         """
-        if self.submmit:
+        self.print_test_start_message()
+        test_num = 1
+        # First run the repository tests
+        if self.repo_tests:
+            result = self.iterate_through_tests(self.repo_tests, start_step = test_num)
+            test_num += len(self.repo_tests) 
+        if self.perform_submit and self.repo_tests:
+            if not result:
+                self.print_error("Cannot submit the lab due to errors in the repository")
+                return
             submit_status = self.submit_lab(self.test_name)
             if not submit_status:
                 return
-        self.print_test_start_message()
-        test_num = 1
         if self.run_pre_build_tests:
-            self.iterate_through_tests(self.pre_build_tests, start_step = test_num)
+            result = self.iterate_through_tests(self.pre_build_tests, start_step = test_num)
             test_num += len(self.pre_build_tests) 
         if self.run_build_tests:
-            self.iterate_through_tests(self.build_tests, start_step = test_num)
+            result = self.iterate_through_tests(self.build_tests, start_step = test_num)
             test_num += len(self.build_tests) 
         if self.run_post_build_tests:
-            self.iterate_through_tests(self.post_build_tests, start_step = test_num)
-            test_num += len(self.build_tests) 
+            result = self.iterate_through_tests(self.post_build_tests, start_step = test_num)
+            test_num += len(self.run_post_build_tests) 
         if self.run_clean_tests:
-            self.iterate_through_tests(self.clean_tests, start_step = test_num)
+            result = self.iterate_through_tests(self.clean_tests, start_step = test_num)
             test_num += len(self.clean_tests) 
         self.print_test_end_message()
 
-    def submit_lab(self, lab_name):
+    def submit_lab(self, lab_name, force = False):
         ''' Passoff a lab assignment '''
-        # 1. Check to see if there are any modified tracked files that need to be committed. If so, exit.
-        uncommitted_files = repo_test.get_uncommitted_tracked_files(self.repo)
-        if uncommitted_files:
-            self.print_error("There are modified tracked files that need to be committed before submission.")
-            self.print_error("Please commit the following files:")
-            for file in uncommitted_files:
-                self.print_error(f"  {file}")
-            return False
+        # # 1. Check to see if there are any modified tracked files that need to be committed. If so, exit.
+        # uncommitted_files = repo_test.get_uncommitted_tracked_files(self.repo)
+        # if uncommitted_files:
+        #     self.print_error("There are modified tracked files that need to be committed before submission.")
+        #     self.print_error("Please commit the following files:")
+        #     for file in uncommitted_files:
+        #         self.print_error(f"  {file}")
+        #     return False
+        # # 2. See if the remote and local match (need for push/pull)
+        # unpushed_commits = repo_test.get_unpushed_commits(self.repo)
+        # if unpushed_commits:
+        #     repo_test_suite.print_error('Local branch has unpushed commits:')
+        #     for commit in unpushed_commits:
+        #         repo_test_suite.print_error(f'  - {commit.hexsha[:7]}: {commit.message.strip()}')
+        #     return False
+        # # 3. Check for unpulled commits
+        # unpulled_commits = repo_test.get_unpulled_commits(self.repo)
+        # if unpulled_commits:
+        #     repo_test_suite.print_error('Local branch has unpulled commits:')
+        #     for commit in unpulled_commits:
+        #         repo_test_suite.print_error(f'  - {commit.hexsha[:7]}: {commit.message.strip()}')
+        #     return False
+        # # 4. Check starter code
+        # unpulled_commits = repo_test.get_unpulled_commits(repo_test_suite.repo, 
+        #     self.remote_name, self.remote_branch, self.last_date_of_remote_commit)
+        # if unpulled_commits:
+        #     repo_test_suite.print_error('Remote Branch has unpulled commits:')
+        #     for commit in unpulled_commits:
+        #         repo_test_suite.print_error(f'  - {commit.hexsha[:7]}: {commit.message.strip()}')
+        #     return self.warning_result()
         return True
 
-        #   - Check to see if there are any modified tracked files that need to be committed. If so, exit with error saying that all files must be committed before submission.
-        #     (this is necessary so that we can checkout the tag and not overwrite existing changes)
         #   - Check to see if the starter code has been updated (to match the date of the start of the assignment). If not, exit with error saying they need to udpate the starter cord
         #     Provide code to automatically update with the starter code?
         #   - Check to see if the files in the starter code have been changed locally. If so, exit with error saying they need to revert their starter code to the original.
@@ -177,7 +216,7 @@ def build_test_suite_320(assignment_name, max_repo_files = 20, start_date = None
     """ A helper function used by 'main' functions to build a test suite based on command line arguments.
     """
     parser = argparse.ArgumentParser(description=f"Test suite for 320 Assignment: {assignment_name}")
-    parser.add_argument("--submit", help="Submit the assignment to the remote repository (tag and push)")
+    parser.add_argument("--submit",  action="store_true", help="Submit the assignment to the remote repository (tag and push)")
     parser.add_argument("--repo", help="Path to the local repository to test (default is current directory)")
     parser.add_argument("--norepo", action="store_true", help="Do not run Repo tests")
     parser.add_argument("--nobuild", action="store_true", help="Do not run build tests")
