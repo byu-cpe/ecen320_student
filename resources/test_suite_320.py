@@ -10,8 +10,6 @@ from repo_test_suite import repo_test_suite
 
 # ToDo:
 # - Lab check script:
-#   - Check to see if the starter code has been updated (to match the date of the tag or main if there is no tag)
-#     - Compare the starter code to the existing code (manually change stater code?)
 #   - Provide a link to the web page for instructions on how to address this problem
 #   - Check to see if the student has changed the starter code locally
 #   - Provide a way for having the simulation environment return an error when the testbench fails (lab 2)
