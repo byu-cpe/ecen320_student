@@ -87,39 +87,11 @@ def get_unpulled_commits(repo,  remote_name = None, remote_branch_name = None, d
     # else:
     #     print(f"No unpulled commits from remote branch '{remote_branch}'.")
 
-def get_last_commit_up_until_date(repo, date, remote_name, remote_branch_name):
-    ''' Get the last commit on the remote up and to the date provided
-    '''
-    if remote_name is None:
-        remote_name = "origin"
-    if remote_branch_name is None:
-        remote_branch_name = "main"
-    if date is None:
-        date = datetime.datetime.now()
-    # Fetch Remotes
-    if not fetch_remote(repo, remote_name):
-        return None
-    # Construct remote branch reference
-    remote_branch = f"{remote_name}/{remote_branch_name}"
-
-    # Check if the remote branch exists
-    if remote_branch not in [ref.name for ref in repo.refs]:
-        raise Exception(f"Branch '{remote_branch_name}' does not exist on remote '{remote_name}'.")
-
-    remote_commits = list(repo.iter_commits(f"{remote_name}/{remote_branch}"))
-    latest_remote_commit = None
-    latest_remote_commit_date = None
-    for commit in remote_commits:
-        remote_commit_date = datetime.datetime.fromtimestamp(commit.committed_date)
-        if remote_commit_date <= date: # Ignore commits after given date
-            if latest_remote_commit is None:
-                latest_remote_commit = remote_commit_date
-                latest_remote_commit_date = remote_commit_date
-            else:
-                if remote_commit_date > latest_remote_commit_date:
-                    latest_remote_commit = commit
-                    latest_remote_commit_date = remote_commit_date
-    return latest_remote_commit
+def get_uncommitted_tracked_files(repo):
+    ''' Get a list of uncommitted files in the local repository.  '''
+    uncommitted_changes = repo.index.diff(None)
+    modified_files = [item.a_path for item in uncommitted_changes if item.change_type == 'M']
+    return modified_files
 
 #########################################################3
 # Base repo test classes
@@ -601,9 +573,7 @@ class check_for_uncommitted_files(repo_test):
         return modified_files
 
     def perform_test(self, repo_test_suite):
-        modified_files = check_for_uncommitted_files.find_uncommitted_tracked_files(repo_test_suite.repo)
-        # uncommitted_changes = repo_test_suite.repo.index.diff(None)
-        # modified_files = [item.a_path for item in uncommitted_changes if item.change_type == 'M']
+        modified_files = get_uncommitted_tracked_files(repo_test_suite.repo)
         if modified_files:
             repo_test_suite.print_error('Uncommitted files found in repository:')
             for file in modified_files:

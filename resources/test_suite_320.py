@@ -10,10 +10,10 @@ from repo_test_suite import repo_test_suite
 
 # ToDo:
 # - Lab check script:
+#   - Fix up the error reporting (return error object instead of printing)
 #   - Provide a link to the web page for instructions on how to address this problem
 #   - Check to see if the student has changed the starter code locally
 #   - Provide a way for having the simulation environment return an error when the testbench fails (lab 2)
-#   - Check to see if an executable exists (such as vivado). Exit on error. (lab 2)
 #   - For uncommitted files, should we only check for the current directory or the entire repo?
 # - tag flag
 #   - The tag flag is used to checkout a specific tag before running the script. This is used to check out the code at the time of submission and run
@@ -51,7 +51,7 @@ class test_suite_320(repo_test_suite):
     '''
 
     def __init__(self, repo, assignment_name, max_repo_files = 20, summary_log_filename = None,
-                 required_executables = None):
+                 required_executables = None, submit = False):
         super().__init__(repo, test_name = assignment_name, summary_log_filename = summary_log_filename)
         self.pre_build_tests = []
         self.build_tests = []
@@ -67,6 +67,7 @@ class test_suite_320(repo_test_suite):
         self.copy_file_dir = None # Location to copy generated build files
         self.prepend_file_str = None # String to prepend to the file name when copying
         self.required_executables = required_executables
+        self.perform_submit = submit
 
     def add_pre_build_tests(self, max_repo_files, tag_str = None, check_start_code = True, 
                             required_executables = None, remote_branch = "main"):
@@ -127,6 +128,10 @@ class test_suite_320(repo_test_suite):
     def run_tests(self):
         """ Run all the registered tests in the test suite.
         """
+        if self.submmit:
+            submit_status = self.submit_lab(self.test_name)
+            if not submit_status:
+                return
         self.print_test_start_message()
         test_num = 1
         if self.run_pre_build_tests:
@@ -142,6 +147,31 @@ class test_suite_320(repo_test_suite):
             self.iterate_through_tests(self.clean_tests, start_step = test_num)
             test_num += len(self.clean_tests) 
         self.print_test_end_message()
+
+    def submit_lab(self, lab_name):
+        ''' Passoff a lab assignment '''
+        # 1. Check to see if there are any modified tracked files that need to be committed. If so, exit.
+        uncommitted_files = repo_test.get_uncommitted_tracked_files(self.repo)
+        if uncommitted_files:
+            self.print_error("There are modified tracked files that need to be committed before submission.")
+            self.print_error("Please commit the following files:")
+            for file in uncommitted_files:
+                self.print_error(f"  {file}")
+            return False
+        return True
+
+        #   - Check to see if there are any modified tracked files that need to be committed. If so, exit with error saying that all files must be committed before submission.
+        #     (this is necessary so that we can checkout the tag and not overwrite existing changes)
+        #   - Check to see if the starter code has been updated (to match the date of the start of the assignment). If not, exit with error saying they need to udpate the starter cord
+        #     Provide code to automatically update with the starter code?
+        #   - Check to see if the files in the starter code have been changed locally. If so, exit with error saying they need to revert their starter code to the original.
+        #   - Check to see if there is a tag for the current assignment. 
+        #     - If not, tag the repository, push the tag to the remote. (ask for permission first unless '--force' flag is given)
+        #     - If there is a tag:
+        #       - Check to see if the tag code is different from the current commit. If not, exit saying it is already tagged and ready to submit
+        #       - If the code is different, ask for permission to retag and push the tag to the remote. (ask for permission first unless '--force' flag is given)
+        #   - At the end of the script, see if the tag exists and the commit date has been updated.
+        pass
 
 def build_test_suite_320(assignment_name, max_repo_files = 20, start_date = None):
     """ A helper function used by 'main' functions to build a test suite based on command line arguments.
@@ -171,7 +201,8 @@ def build_test_suite_320(assignment_name, max_repo_files = 20, start_date = None
 
     # Build test suite
     test_suite = test_suite_320(repo, assignment_name,
-        max_repo_files = max_repo_files, summary_log_filename = summary_log_filename)
+        max_repo_files = max_repo_files, summary_log_filename = summary_log_filename, submit = args.submit)
+
     # Decide which tests to run
     if args.norepo:
         test_suite.run_pre_build_tests = False

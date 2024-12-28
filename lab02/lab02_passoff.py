@@ -13,6 +13,7 @@ import test_suite_320
 import repo_test
 
 def main():
+    # Check on vivado
     tester = test_suite_320.build_test_suite_320("lab02", start_date="01/20/2025")
     tester.add_Makefile_rule("sim_adder", ["sim_adder.tcl"], ["sim_adder.log"])
     tester.add_Makefile_rule("bottom", ["aboutme.txt"], ["bottom.txt"])
