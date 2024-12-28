@@ -26,38 +26,35 @@ import shutil
 
 def fetch_remote(repo, remote_name = None):
     ''' Fetch updates from the remote repository.
-    of remote_name is None, the origin remote is used.'''
+    This function may raise an Exception. '''
     try:
         # Ensure the local repository is not in a detached HEAD state
         if repo.head.is_detached:
-            #print("The repository is in a detached HEAD state.")
-            return False
+            raise Exception("The repository is in a detached HEAD state.")
         if remote_name is not None:
             if remote_name not in repo.remotes:
-                #print(f"Remote {remote_name} not found in repository")
-                return False
+                raise Exception(f"Remote {remote_name} not found in repository")
             remote = repo.remotes[remote_name]
         else:
             remote = repo.remotes.origin
-        # Get the current branch name
-        # current_branch = repo.active_branch.name
-        # Fetch remote updates
-        # print(f"Fetching updates from remote for branch '{current_branch}'...")
         remote.fetch()
         return True
     except Exception as e:
-        print(f"Error fetching updates from remote: {e}")
-        return False
+        raise Exception(f"Error fetching updates from remote: {e}")
 
-def get_unpushed_commits(repo):
-    ''' Get a list of unpushed commits in the local repository.
-    Note that a 'fetch' should be performed before calling this function. '''
-
+def get_unpushed_commits(repo, remote_name = None, remote_branch_name = None):
+    ''' Get a list of unpushed commits in the local repository. '''
+    # Fetch the remote before doing the compare
+    fetch_remote(repo, remote_name)
     # Get the remote branch reference
-    current_branch = repo.active_branch.name
-    remote_branch = f"origin/{current_branch}"
+    if remote_name is None:
+        remote_name = "origin"
+    if remote_branch_name is None:
+        remote_branch_name = "main"
+    remote_branch = f"{remote_name}/{remote_branch_name}"  #repo.active_branch.name
+    local_branch = repo.active_branch.name
     # Check for unpushed local commits
-    unpushed_commits = list(repo.iter_commits(f"{remote_branch}..{current_branch}"))
+    unpushed_commits = list(repo.iter_commits(f"{remote_branch}..{local_branch}"))
     return unpushed_commits
     # if unpushed_commits:
     #     print(f"Local branch '{current_branch}' has unpushed commits:")
@@ -66,31 +63,49 @@ def get_unpushed_commits(repo):
     # else:
     #     print(f"No unpushed commits in local branch '{current_branch}'.")
 
-def get_unpulled_commits(repo):
-    ''' Get a list of unpulled commits in the local repository.
-    Note that a 'fetch' should be performed before calling this function. '''
+def get_unpulled_commits(repo,  remote_name = None, remote_branch_name = None, date_limit = None):
+    ''' Get a list of unpulled commits in the local repository.  '''
+    # Fetch the remote before doing the compare
+    fetch_remote(repo, remote_name)
     # Get the remote branch reference
-    current_branch = repo.active_branch.name
-    remote_branch = f"origin/{current_branch}"
-    # Check for unpulled remote commits
-    unpulled_commits = list(repo.iter_commits(f"{current_branch}..{remote_branch}"))
+    if remote_name is None:
+        remote_name = "origin"
+    if remote_branch_name is None:
+        remote_branch_name = "main"
+    # Create branch names
+    remote_branch = f"{remote_name}/{remote_branch_name}"  #repo.active_branch.name
+    local_branch = repo.active_branch.name
+    unpulled_commits = list(repo.iter_commits(f"{local_branch}..{remote_branch}"))
+    # Remove those commits that are after the date limit
+    if date_limit is not None:
+        unpulled_commits = [commit for commit in unpulled_commits if datetime.datetime.fromtimestamp(commit.committed_date) <= date_limit]
+    return unpulled_commits
     # if unpulled_commits:
     #     print(f"Remote branch '{remote_branch}' has unpulled commits:")
     #     for commit in unpulled_commits:
     #         print(f"  - {commit.hexsha[:7]}: {commit.message.strip()}")
     # else:
     #     print(f"No unpulled commits from remote branch '{remote_branch}'.")
-    return unpulled_commits
 
-def get_last_commit_up_until_date(repo, date, remote_name, remote_branch):
+def get_last_commit_up_until_date(repo, date, remote_name, remote_branch_name):
     ''' Get the last commit on the remote up and to the date provided
     '''
     if remote_name is None:
         remote_name = "origin"
-    if remote_branch is None:
-        remote_branch = "main"
+    if remote_branch_name is None:
+        remote_branch_name = "main"
     if date is None:
         date = datetime.datetime.now()
+    # Fetch Remotes
+    if not fetch_remote(repo, remote_name):
+        return None
+    # Construct remote branch reference
+    remote_branch = f"{remote_name}/{remote_branch_name}"
+
+    # Check if the remote branch exists
+    if remote_branch not in [ref.name for ref in repo.refs]:
+        raise Exception(f"Branch '{remote_branch_name}' does not exist on remote '{remote_name}'.")
+
     remote_commits = list(repo.iter_commits(f"{remote_name}/{remote_branch}"))
     latest_remote_commit = None
     latest_remote_commit_date = None
@@ -660,25 +675,24 @@ class check_remote_origin(repo_test):
         return "Compare local repository to remote"
 
     def perform_test(self, repo_test_suite):
-        # 1. Fetch the remote updates
-        fetch_result = fetch_remote(repo_test_suite.repo)
-        if not fetch_result:
-            repo_test_suite.print_error("Error fetching updates from remote")
+        try:
+            # 1. Check for unpushed commits
+            unpushed_commits = get_unpushed_commits(repo_test_suite.repo)
+            if unpushed_commits:
+                repo_test_suite.print_error('Local branch has unpushed commits:')
+                for commit in unpushed_commits:
+                    repo_test_suite.print_error(f'  - {commit.hexsha[:7]}: {commit.message.strip()}')
+                return self.warning_result()
+            # 2. Check for unpulled commits
+            unpulled_commits = get_unpulled_commits(repo_test_suite.repo)
+            if unpulled_commits:
+                repo_test_suite.print_error('Local branch has unpulled commits:')
+                for commit in unpulled_commits:
+                    repo_test_suite.print_error(f'  - {commit.hexsha[:7]}: {commit.message.strip()}')
+                return self.warning_result()
+        except Exception as e:
+            repo_test_suite.print_error(f"Error checking remote origin: {e}")
             return self.error_result()
-        # 2. Check for unpushed commits
-        unpushed_commits = get_unpushed_commits(repo_test_suite.repo)
-        if unpushed_commits:
-            repo_test_suite.print_error('Local branch has unpushed commits:')
-            for commit in unpushed_commits:
-                repo_test_suite.print_error(f'  - {commit.hexsha[:7]}: {commit.message.strip()}')
-            return self.warning_result()
-        # 3. Check for unpulled commits
-        unpulled_commits = get_unpulled_commits(repo_test_suite.repo)
-        if unpulled_commits:
-            repo_test_suite.print_error('Local branch has unpulled commits:')
-            for commit in unpulled_commits:
-                repo_test_suite.print_error(f'  - {commit.hexsha[:7]}: {commit.message.strip()}')
-            return self.warning_result()
         return self.success_result()
 
 class check_remote_starter(repo_test):
@@ -698,42 +712,20 @@ class check_remote_starter(repo_test):
             self.last_date_of_remote_commit = datetime.datetime.now()
 
     def module_name(self):
-        module_str = f"Check for updates from remote: {self.remote_name}"
-        if self.remote_branch is not None:
-            module_str += f" branch: {self.remote_branch}"
+        module_str = f"Check for updates from remote: {self.remote_name}/{self.remote_branch}"
         return module_str
 
     def perform_test(self, repo_test_suite):
-        # Get the remote
-        remote = repo_test_suite.repo.remote(name = self.remote_name)
-        if remote is None:
-            repo_test_suite.print_error(f"Remote {self.remote_name} not found")
+        try:
+            # 1. Check for unpulled commits from starter
+            unpulled_commits = get_unpulled_commits(repo_test_suite.repo, 
+                self.remote_name, self.remote_branch, self.last_date_of_remote_commit)
+            if unpulled_commits:
+                repo_test_suite.print_error('Remote Branch has unpulled commits:')
+                for commit in unpulled_commits:
+                    repo_test_suite.print_error(f'  - {commit.hexsha[:7]}: {commit.message.strip()}')
+                return self.warning_result()
+        except Exception as e:
+            repo_test_suite.print_error(f"Error: {e}")
             return self.error_result()
-        # Fetch from the remote
-        if not fetch_remote(repo_test_suite.repo, self.remote_name):
-            repo_test_suite.print_error(f"Error fetching updates from remote {self.remote_name}")
-            return self.error_result()
-        # Get the last commit on the remote up and to last_date_of_remote_commit
-        latest_remote_commit = get_last_commit_up_until_date(repo_test_suite.repo, self.last_date_of_remote_commit, self.remote_name, self.remote_branch)
-
-
-        # Find the commit from the remote that is the closest to the search limit date
-        # but not past the lsearch limit date. This is done so that checks against old tagged
-        # commits during grading are not penalized for future commits to the remote.
-        if self.use_date_of_current_commit:
-            search_limit_date = local_commit_date
-        else:
-            search_limit_date = datetime.datetime.now()
-
-
-        if latest_remote_commit > local_commit_date:
-            repo_test_suite.print_error(f"Git Remote \'{self.remote_name}\' has some newer commits that are not integarated into the local repository")
-            return self.warning_result()
-
         return self.success_result()
-
-        # Get the current branch, commit, and commit date from the local repo
-        current_branch = repo_test_suite.repo.active_branch
-        local_commit = repo_test_suite.repo.commit(current_branch)
-        local_commit_date = datetime.datetime.fromtimestamp(local_commit.committed_date)
-        print(f"current branch:{current_branch}, commit hash {local_commit.hexsha[:7]} commit date {local_commit_date}" )

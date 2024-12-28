@@ -12,7 +12,8 @@ from repo_test_suite import repo_test_suite
 # - Lab check script:
 #   - Check to see if the starter code has been updated (to match the date of the tag or main if there is no tag)
 #     - Compare the starter code to the existing code (manually change stater code?)
-#     - Provide a link to the web page for instructions on how to address this problem
+#   - Provide a link to the web page for instructions on how to address this problem
+#   - Check to see if the student has changed the starter code locally
 #   - Provide a way for having the simulation environment return an error when the testbench fails (lab 2)
 #   - Check to see if an executable exists (such as vivado). Exit on error. (lab 2)
 #   - For uncommitted files, should we only check for the current directory or the entire repo?
@@ -59,7 +60,7 @@ class test_suite_320(repo_test_suite):
         self.post_build_tests = []
         self.clean_tests = []
         #self.add_pre_build_tests(max_repo_files, tag_str = assignment_name)
-        self.add_pre_build_tests(max_repo_files)  # Check tag as part of submit flag
+        self.add_pre_build_tests(max_repo_files, remote_branch = "devel")
         self.add_clean_tests()
         self.run_pre_build_tests = True
         self.run_build_tests = True
@@ -69,19 +70,14 @@ class test_suite_320(repo_test_suite):
         self.prepend_file_str = None # String to prepend to the file name when copying
         self.required_executables = required_executables
 
-    def add_pre_build_tests(self, max_repo_files, tag_str = None, 
-                       list_git_commits = False, check_start_code = False, min_err_commits = None,
-                       required_executables = None):
+    def add_pre_build_tests(self, max_repo_files, tag_str = None, check_start_code = True, 
+                            required_executables = None, remote_branch = "main"):
         """ Add default tests that should be executed before any building. """
-        if list_git_commits:
-            self.add_pre_build_test(repo_test.list_git_commits())
-        if min_err_commits is not None:
-            self.add_pre_build_test(get_err_git_commits(min_err_commits))
         self.add_pre_build_test(repo_test.check_for_uncommitted_files())
         self.add_pre_build_test(repo_test.check_remote_origin())
         self.add_pre_build_test(repo_test.check_for_max_repo_files(max_repo_files))
         if check_start_code:
-            self.add_pre_build_test(repo_test.check_remote_updates("startercode"))
+            self.add_pre_build_test(repo_test.check_remote_starter("startercode", remote_branch = remote_branch))
         if tag_str is not None:
             self.add_pre_build_test(repo_test.check_for_tag(tag_str))
         if required_executables is not None:
