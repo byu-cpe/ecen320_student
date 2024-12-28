@@ -10,11 +10,9 @@ from repo_test_suite import repo_test_suite
 
 # ToDo:
 # - Lab check script:
-#   - Check to see if the committed changes have been pushed to the remote repository
 #   - Check to see if the starter code has been updated (to match the date of the tag or main if there is no tag)
 #     - Compare the starter code to the existing code (manually change stater code?)
 #     - Provide a link to the web page for instructions on how to address this problem
-#   - Make sure the code is NOT checked out with a detached HEAD (is on a valid branch)
 #   - Provide a way for having the simulation environment return an error when the testbench fails (lab 2)
 #   - Check to see if an executable exists (such as vivado). Exit on error. (lab 2)
 #   - For uncommitted files, should we only check for the current directory or the entire repo?

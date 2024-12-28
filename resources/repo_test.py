@@ -24,18 +24,26 @@ import shutil
 # These functions are independent of the repo_test classes.
 ##########################################################
 
-def fetch_remote_updates(repo):
-    ''' Fetch updates from the remote repository.'''
+def fetch_remote(repo, remote_name = None):
+    ''' Fetch updates from the remote repository.
+    of remote_name is None, the origin remote is used.'''
     try:
-        # Ensure the repository is not in a detached HEAD state
+        # Ensure the local repository is not in a detached HEAD state
         if repo.head.is_detached:
             #print("The repository is in a detached HEAD state.")
             return False
+        if remote_name is not None:
+            if remote_name not in repo.remotes:
+                #print(f"Remote {remote_name} not found in repository")
+                return False
+            remote = repo.remotes[remote_name]
+        else:
+            remote = repo.remotes.origin
         # Get the current branch name
         # current_branch = repo.active_branch.name
         # Fetch remote updates
         # print(f"Fetching updates from remote for branch '{current_branch}'...")
-        repo.remotes.origin.fetch()
+        remote.fetch()
         return True
     except Exception as e:
         print(f"Error fetching updates from remote: {e}")
@@ -73,6 +81,30 @@ def get_unpulled_commits(repo):
     # else:
     #     print(f"No unpulled commits from remote branch '{remote_branch}'.")
     return unpulled_commits
+
+def get_last_commit_up_until_date(repo, date, remote_name, remote_branch):
+    ''' Get the last commit on the remote up and to the date provided
+    '''
+    if remote_name is None:
+        remote_name = "origin"
+    if remote_branch is None:
+        remote_branch = "main"
+    if date is None:
+        date = datetime.datetime.now()
+    remote_commits = list(repo.iter_commits(f"{remote_name}/{remote_branch}"))
+    latest_remote_commit = None
+    latest_remote_commit_date = None
+    for commit in remote_commits:
+        remote_commit_date = datetime.datetime.fromtimestamp(commit.committed_date)
+        if remote_commit_date <= date: # Ignore commits after given date
+            if latest_remote_commit is None:
+                latest_remote_commit = remote_commit_date
+                latest_remote_commit_date = remote_commit_date
+            else:
+                if remote_commit_date > latest_remote_commit_date:
+                    latest_remote_commit = commit
+                    latest_remote_commit_date = remote_commit_date
+    return latest_remote_commit
 
 #########################################################3
 # Base repo test classes
@@ -620,7 +652,7 @@ class list_git_commits(repo_test):
 class check_remote_origin(repo_test):
     ''' Checks to see if the remote origin matches the local.
     '''
-    def __init__(selfe):
+    def __init__(self):
         '''  '''
         super().__init__()
 
@@ -629,7 +661,7 @@ class check_remote_origin(repo_test):
 
     def perform_test(self, repo_test_suite):
         # 1. Fetch the remote updates
-        fetch_result = repo_test.fetch_remote_updates(repo_test_suite.repo)
+        fetch_result = fetch_remote(repo_test_suite.repo)
         if not fetch_result:
             repo_test_suite.print_error("Error fetching updates from remote")
             return self.error_result()
@@ -649,31 +681,42 @@ class check_remote_origin(repo_test):
             return self.warning_result()
         return self.success_result()
 
-class check_remote_updates(repo_test):
-    ''' Checks to see if the repository has the latest commits from a remote.
+class check_remote_starter(repo_test):
+    ''' Checks to see if a remote starter repository has been updated.
+    Also checks to see if the local repository has been modified differently
+    from this remote starter.
     '''
-    def __init__(self, remote_name, use_date_of_current_commit = False):
+    def __init__(self, remote_name, remote_branch = None, last_date_of_remote_commit = None):
         '''  '''
         super().__init__()
         self.remote_name = remote_name
-        self.use_date_of_current_commit = use_date_of_current_commit
+        self.remote_branch = remote_branch
+        if self.remote_branch is None:
+            self.remote_branch = "main"
+        self.last_date_of_remote_commit = last_date_of_remote_commit
+        if self.last_date_of_remote_commit is None:
+            self.last_date_of_remote_commit = datetime.datetime.now()
 
     def module_name(self):
-        return "Check for updates from remote:" + self.remote_name
+        module_str = f"Check for updates from remote: {self.remote_name}"
+        if self.remote_branch is not None:
+            module_str += f" branch: {self.remote_branch}"
+        return module_str
 
     def perform_test(self, repo_test_suite):
-        # Get the current branch, commit, and commit date from the local repo
-        current_branch = repo_test_suite.repo.active_branch
-        local_commit = repo_test_suite.repo.commit(current_branch)
-        local_commit_date = datetime.datetime.fromtimestamp(local_commit.committed_date)
-        print(f"current branch:{current_branch}, commit hash {local_commit.hexsha[:7]} commit date {local_commit_date}" )
         # Get the remote
         remote = repo_test_suite.repo.remote(name = self.remote_name)
         if remote is None:
             repo_test_suite.print_error(f"Remote {self.remote_name} not found")
             return self.error_result()
-        # Fetch from the remote and get remote commit
-        remote.fetch()
+        # Fetch from the remote
+        if not fetch_remote(repo_test_suite.repo, self.remote_name):
+            repo_test_suite.print_error(f"Error fetching updates from remote {self.remote_name}")
+            return self.error_result()
+        # Get the last commit on the remote up and to last_date_of_remote_commit
+        latest_remote_commit = get_last_commit_up_until_date(repo_test_suite.repo, self.last_date_of_remote_commit, self.remote_name, self.remote_branch)
+
+
         # Find the commit from the remote that is the closest to the search limit date
         # but not past the lsearch limit date. This is done so that checks against old tagged
         # commits during grading are not penalized for future commits to the remote.
@@ -681,22 +724,16 @@ class check_remote_updates(repo_test):
             search_limit_date = local_commit_date
         else:
             search_limit_date = datetime.datetime.now()
-        remote_commits = list(repo_test_suite.repo.iter_commits(f"{self.remote_name}/{current_branch}"))
-        latest_remote_commit = None
-        print(f"search limit date {search_limit_date}")
-        for commit in remote_commits:
-            remote_commit_date = datetime.datetime.fromtimestamp(commit.committed_date)
-            if remote_commit_date <= search_limit_date:
-                if latest_remote_commit is None:
-                    latest_remote_commit = remote_commit_date
-                else:
-                    if remote_commit_date > latest_remote_commit:
-                        latest_remote_commit = remote_commit_date
-        print(f"Latest remote commit date {latest_remote_commit}")
-        # git config --global alias.tm "commit --no-commit --no-ff"
+
 
         if latest_remote_commit > local_commit_date:
             repo_test_suite.print_error(f"Git Remote \'{self.remote_name}\' has some newer commits that are not integarated into the local repository")
             return self.warning_result()
 
         return self.success_result()
+
+        # Get the current branch, commit, and commit date from the local repo
+        current_branch = repo_test_suite.repo.active_branch
+        local_commit = repo_test_suite.repo.commit(current_branch)
+        local_commit_date = datetime.datetime.fromtimestamp(local_commit.committed_date)
+        print(f"current branch:{current_branch}, commit hash {local_commit.hexsha[:7]} commit date {local_commit_date}" )
