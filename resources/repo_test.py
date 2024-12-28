@@ -19,6 +19,61 @@ import queue
 import pathlib
 import shutil
 
+##########################################################
+# Useful static functions for manipulating and querying git repos
+# These functions are independent of the repo_test classes.
+##########################################################
+
+def fetch_remote_updates(repo):
+    ''' Fetch updates from the remote repository.'''
+    try:
+        # Ensure the repository is not in a detached HEAD state
+        if repo.head.is_detached:
+            #print("The repository is in a detached HEAD state.")
+            return False
+        # Get the current branch name
+        # current_branch = repo.active_branch.name
+        # Fetch remote updates
+        # print(f"Fetching updates from remote for branch '{current_branch}'...")
+        repo.remotes.origin.fetch()
+        return True
+    except Exception as e:
+        print(f"Error fetching updates from remote: {e}")
+        return False
+
+def get_unpushed_commits(repo):
+    ''' Get a list of unpushed commits in the local repository.
+    Note that a 'fetch' should be performed before calling this function. '''
+
+    # Get the remote branch reference
+    current_branch = repo.active_branch.name
+    remote_branch = f"origin/{current_branch}"
+    # Check for unpushed local commits
+    unpushed_commits = list(repo.iter_commits(f"{remote_branch}..{current_branch}"))
+    return unpushed_commits
+    # if unpushed_commits:
+    #     print(f"Local branch '{current_branch}' has unpushed commits:")
+    #     for commit in unpushed_commits:
+    #         print(f"  - {commit.hexsha[:7]}: {commit.message.strip()}")
+    # else:
+    #     print(f"No unpushed commits in local branch '{current_branch}'.")
+
+def get_unpulled_commits(repo):
+    ''' Get a list of unpulled commits in the local repository.
+    Note that a 'fetch' should be performed before calling this function. '''
+    # Get the remote branch reference
+    current_branch = repo.active_branch.name
+    remote_branch = f"origin/{current_branch}"
+    # Check for unpulled remote commits
+    unpulled_commits = list(repo.iter_commits(f"{current_branch}..{remote_branch}"))
+    # if unpulled_commits:
+    #     print(f"Remote branch '{remote_branch}' has unpulled commits:")
+    #     for commit in unpulled_commits:
+    #         print(f"  - {commit.hexsha[:7]}: {commit.message.strip()}")
+    # else:
+    #     print(f"No unpulled commits from remote branch '{remote_branch}'.")
+    return unpulled_commits
+
 #########################################################3
 # Base repo test classes
 #########################################################3
@@ -491,10 +546,17 @@ class check_for_uncommitted_files(repo_test):
 
     def module_name(self):
         return "Check for uncommitted git files"
+    
+    def find_uncommitted_tracked_files(repo, dir = None):
+        ''' Static function that finds uncommitted files in the repo. '''
+        uncommitted_changes = repo.index.diff(None)
+        modified_files = [item.a_path for item in uncommitted_changes if item.change_type == 'M']
+        return modified_files
 
     def perform_test(self, repo_test_suite):
-        uncommitted_changes = repo_test_suite.repo.index.diff(None)
-        modified_files = [item.a_path for item in uncommitted_changes if item.change_type == 'M']
+        modified_files = check_for_uncommitted_files.find_uncommitted_tracked_files(repo_test_suite.repo)
+        # uncommitted_changes = repo_test_suite.repo.index.diff(None)
+        # modified_files = [item.a_path for item in uncommitted_changes if item.change_type == 'M']
         if modified_files:
             repo_test_suite.print_error('Uncommitted files found in repository:')
             for file in modified_files:
@@ -520,13 +582,13 @@ class check_number_of_files(repo_test):
     def perform_test(self, repo_test_suite):
         uncommitted_files = repo_test_suite.repo.git.status("--suno")
         if uncommitted_files:
-            repo_test_suite.print_error(f'Uncommitted files found in repository:')
+            repo_test_suite.print_error('Uncommitted files found in repository:')
             files = uncommitted_files.splitlines()
             for file in files:
                 repo_test_suite.print_error(f'  {file}')
             # return False
             return self.warning_result()
-        repo_test_suite.print(f'No uncommitted files found in repository')
+        repo_test_suite.print('No uncommitted files found in repository')
         # return True
         return self.success_result()
 
@@ -555,8 +617,40 @@ class list_git_commits(repo_test):
         # return True
         return self.success_result()
 
+class check_remote_origin(repo_test):
+    ''' Checks to see if the remote origin matches the local.
+    '''
+    def __init__(selfe):
+        '''  '''
+        super().__init__()
+
+    def module_name(self):
+        return "Compare local repository to remote"
+
+    def perform_test(self, repo_test_suite):
+        # 1. Fetch the remote updates
+        fetch_result = repo_test.fetch_remote_updates(repo_test_suite.repo)
+        if not fetch_result:
+            repo_test_suite.print_error("Error fetching updates from remote")
+            return self.error_result()
+        # 2. Check for unpushed commits
+        unpushed_commits = get_unpushed_commits(repo_test_suite.repo)
+        if unpushed_commits:
+            repo_test_suite.print_error('Local branch has unpushed commits:')
+            for commit in unpushed_commits:
+                repo_test_suite.print_error(f'  - {commit.hexsha[:7]}: {commit.message.strip()}')
+            return self.warning_result()
+        # 3. Check for unpulled commits
+        unpulled_commits = get_unpulled_commits(repo_test_suite.repo)
+        if unpulled_commits:
+            repo_test_suite.print_error('Local branch has unpulled commits:')
+            for commit in unpulled_commits:
+                repo_test_suite.print_error(f'  - {commit.hexsha[:7]}: {commit.message.strip()}')
+            return self.warning_result()
+        return self.success_result()
+
 class check_remote_updates(repo_test):
-    ''' Checks to see if the repository has the latest commites from a remote.
+    ''' Checks to see if the repository has the latest commits from a remote.
     '''
     def __init__(self, remote_name, use_date_of_current_commit = False):
         '''  '''

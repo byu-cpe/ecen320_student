@@ -10,15 +10,18 @@ from repo_test_suite import repo_test_suite
 
 # ToDo:
 # - Lab check script:
+#   - Check to see if the committed changes have been pushed to the remote repository
 #   - Check to see if the starter code has been updated (to match the date of the tag or main if there is no tag)
 #     - Compare the starter code to the existing code (manually change stater code?)
-#   - For uncommitted files, should we only check for the current directory or the entire repo?
-#   - Provide a way for having the simulation environment return an error when the testbench fails
-#   - Check to see if the committed changes have been pushed to the remote repository
+#     - Provide a link to the web page for instructions on how to address this problem
+#   - Make sure the code is NOT checked out with a detached HEAD (is on a valid branch)
+#   - Provide a way for having the simulation environment return an error when the testbench fails (lab 2)
 #   - Check to see if an executable exists (such as vivado). Exit on error. (lab 2)
+#   - For uncommitted files, should we only check for the current directory or the entire repo?
 # - tag flag
 #   - The tag flag is used to checkout a specific tag before running the script. This is used to check out the code at the time of submission and run
 #     It is different from the submit flag in that it does not actually tag the repository. Used for grading and checking code without resubmitting.
+#   - Have the script return the checkout to main when done (or cache the current branch and return to current branch)
 # - Submit Flag
 #   - Check to see if there are any modified tracked files that need to be committed. If so, exit with error saying that all files must be committed before submission.
 #     (this is necessary so that we can checkout the tag and not overwrite existing changes)
@@ -30,6 +33,7 @@ from repo_test_suite import repo_test_suite
 #     - If there is a tag:
 #       - Check to see if the tag code is different from the current commit. If not, exit saying it is already tagged and ready to submit
 #       - If the code is different, ask for permission to retag and push the tag to the remote. (ask for permission first unless '--force' flag is given)
+#   - At the end of the script, see if the tag exists and the commit date has been updated.
 #   - Other:
 #     - Add ability to checkout entire repository to a temporary directory and run the script on that directory rather than the local directory
 
@@ -40,14 +44,14 @@ from repo_test_suite import repo_test_suite
 # * Instructions on the passoff script
 
 class test_suite_320(repo_test_suite):
-    """ 
+    ''' 
     Represents a suite of tests to perform on a ECEN 320 repository. The tests are divided into several
     categories that are executed in a specific order:
         self.pre_build_tests: Tests that are run on the repository to check for integrity (before build)
         self.build_tests: Tests that are run involving a build process (generates temporary files, etc.)
         self.post_build_tests: Tests that are run after the build and before the clean (used for checking)
         self.clean_tests: Tests used to clean up and check the repository
-    """
+    '''
 
     def __init__(self, repo, assignment_name, max_repo_files = 20, summary_log_filename = None,
                  required_executables = None):
@@ -76,6 +80,7 @@ class test_suite_320(repo_test_suite):
         if min_err_commits is not None:
             self.add_pre_build_test(get_err_git_commits(min_err_commits))
         self.add_pre_build_test(repo_test.check_for_uncommitted_files())
+        self.add_pre_build_test(repo_test.check_remote_origin())
         self.add_pre_build_test(repo_test.check_for_max_repo_files(max_repo_files))
         if check_start_code:
             self.add_pre_build_test(repo_test.check_remote_updates("startercode"))
