@@ -143,29 +143,37 @@ class test_suite_320(repo_test_suite):
         """
         self.print_test_start_message()
         test_num = 1
-        result = True
+        final_result = True
         # First run the repository tests
         if self.repo_tests:
-            result = result and self.iterate_through_tests(self.repo_tests, start_step = test_num)
-            test_num += len(self.repo_tests) 
+            result = self.iterate_through_tests(self.repo_tests, start_step = test_num)
+            test_num += len(self.repo_tests)
+            final_result = final_result and result 
         if self.run_pre_build_tests:
-            result = result and self.iterate_through_tests(self.pre_build_tests, start_step = test_num)
+            result = self.iterate_through_tests(self.pre_build_tests, start_step = test_num)
             test_num += len(self.pre_build_tests) 
+            final_result = final_result and result 
         if self.run_build_tests:
-            result = result and self.iterate_through_tests(self.build_tests, start_step = test_num)
+            result = self.iterate_through_tests(self.build_tests, start_step = test_num)
             test_num += len(self.build_tests) 
+            final_result = final_result and result 
         if self.run_post_build_tests:
-            result = result and self.iterate_through_tests(self.post_build_tests, start_step = test_num)
+            result = self.iterate_through_tests(self.post_build_tests, start_step = test_num)
             test_num += len(self.post_build_tests) 
+            final_result = final_result and result 
         if self.run_clean_tests:
-            result = result and self.iterate_through_tests(self.clean_tests, start_step = test_num)
+            result = self.iterate_through_tests(self.clean_tests, start_step = test_num)
             test_num += len(self.clean_tests) 
+            final_result = final_result and result 
         if self.perform_submit and self.repo_tests:
-            if not result:
+            if not final_result:
                 self.print_error("Cannot submit the lab due to errors in passoff script")
                 return
             submit_status = self.submit_lab(self.test_name)
             if not submit_status:
+                return
+            check_commit_date_status = self.check_commit_date(self.test_name)
+            if not check_commit_date_status:
                 return
         self.print_test_end_message()
 
@@ -217,7 +225,7 @@ class test_suite_320(repo_test_suite):
             remote.push(new_tag)
         return True
 
-    def check_commit_date(self, lab_name, timeout = 5 * 60, check_sleep_time = 15):
+    def check_commit_date(self, lab_name, timeout = 5 * 60, check_sleep_time = 10):
         ''' Iteratively check the commit date associated with a tag lab submission. 
         This is called after committing the lab to the repository to see if the commit date is updated.'''
         initial_time = time.time()
@@ -252,6 +260,7 @@ class test_suite_320(repo_test_suite):
                 print(f"Timeout reached for checking tag '{lab_name}' commit date.")
                 return False
             # Wait for a bit before checking again
+            print(f"Waiting to check again")
             time.sleep(check_sleep_time)
         return False
 
