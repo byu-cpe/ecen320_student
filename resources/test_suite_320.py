@@ -233,7 +233,7 @@ class test_suite_320(repo_test_suite):
         first_time = True
         while True:
             # Wait for a bit before checking again if it isn't the first iteration
-            if first_time:
+            if not first_time:
                 print(f"Waiting to check for commit file")
                 time.sleep(check_sleep_time)
                 first_time = False
@@ -252,13 +252,12 @@ class test_suite_320(repo_test_suite):
             # Get the commit associated with the tag
             tag_commit = tag.commit
             # See if the .commitdate file exists in root of repository
-            print("DEBUG: tag exists and fetch worked")
             # Access the file from the commit
             file_path = ".commitdate"
             try:
                 file_content = (tag_commit.tree / file_path).data_stream.read().decode("utf-8")
-                print(f"Contents of '{file_path}' from tag '{lab_name}':\n")
-                print(file_content)
+                if len(file_content) > 0:
+                    print(f"Commit file created - submission complete")
                 return True
             except KeyError:
                 print(f"File '{file_path}' does not exist in the commit for tag '{lab_name}'.")
