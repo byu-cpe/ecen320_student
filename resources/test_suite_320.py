@@ -201,10 +201,15 @@ class test_suite_320(repo_test_suite):
         #       - If the code is different, ask for permission to retag and push the tag to the remote. (ask for permission first unless '--force' flag is given)
             tag_commit = tag.commit
             current_commit = self.repo.head.commit
+            commit_file_contents = repo_test.get_file_content(tag_commit, ".commitdate")
             if current_commit.hexsha == tag_commit.hexsha:
                 print(f"Tag '{lab_name}' exists and is already up-to-date with the current commit.")
+                if commit_file_contents is not None:
+                    print(commit_file_contents)
             else:
                 print(f"Tag '{lab_name}' exists and is out-of-date with the current commit.")
+                if commit_file_contents is not None:
+                    print(commit_file_contents)
                 if force:
                     print("Forcing tag update")
                 else:
@@ -254,13 +259,12 @@ class test_suite_320(repo_test_suite):
             # See if the .commitdate file exists in root of repository
             # Access the file from the commit
             file_path = ".commitdate"
-            try:
-                file_content = (tag_commit.tree / file_path).data_stream.read().decode("utf-8")
-                if len(file_content) > 0:
-                    print(f"Commit file created - submission complete")
+            file_content = repo_test.get_file_content(tag_commit, file_path)
+            if file_content is not None:
+                print(f"Commit file created - submission complete")
                 return True
-            except KeyError:
-                print(f"File '{file_path}' does not exist in the commit for tag '{lab_name}'.")
+            else:
+                print(f"Commit file '{file_path}' does not exist.")
 
             # Check if the timeout has been reached
             if time.time() - initial_time > timeout:

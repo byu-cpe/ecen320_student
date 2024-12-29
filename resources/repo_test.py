@@ -101,6 +101,15 @@ def get_remote_tags():
         return False
     return True
 
+def get_commit_file_contents(commit, file_path):
+    try:
+        file_content = (commit.tree / file_path).data_stream.read().decode("utf-8")
+        if len(file_content) > 0:
+            return file_content
+    except KeyError:
+        return None
+    return None
+
 #########################################################3
 # Base repo test classes
 #########################################################3
