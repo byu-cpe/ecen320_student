@@ -4,6 +4,7 @@ import argparse
 import os
 import git
 import subprocess
+import time
 
 import repo_test
 from repo_test_suite import repo_test_suite
@@ -171,32 +172,35 @@ class test_suite_320(repo_test_suite):
     def submit_lab(self, lab_name, force = False):
         ''' Passoff a lab assignment '''
         self.print(f"Running Submission for {lab_name}")
-        # Get all remote tags (is there a reliable way of doing this with Git Python?)
-        try:
-            result = subprocess.run(["git fetch --tags"], shell=True, capture_output=True, text=True)
-            print(result.stdout)
-        except subprocess.CalledProcessError as e:
-            self.print_error(f"Error fetching tags: {e}")
+        result = repo_test.get_remote_tags()
+        if not result:
             return False
+        # Get all remote tags (is there a reliable way of doing this with Git Python?)
+        # try:
+        #     result = subprocess.run(["git fetch --tags"], shell=True, capture_output=True, text=True)
+        #     print(result.stdout)
+        # except subprocess.CalledProcessError as e:
+        #     self.print_error(f"Error fetching tags: {e}")
+        #     return False
         # Check if the tag exists in the repository
         tag = next((tag for tag in self.repo.tags if tag.name == lab_name), None)
         if tag is not None:
+            #wirthlin@BYU-GCXHGWLQP6 lab01 % git push --delete origin lab01
+            #wirthlin@BYU-GCXHGWLQP6 lab01 % git tag --delete lab01
             # Tag exists
         #     - If there is a tag:
         #       - Check to see if the tag code is different from the current commit. If not, exit saying it is already tagged and ready to submit
         #       - If the code is different, ask for permission to retag and push the tag to the remote. (ask for permission first unless '--force' flag is given)
-            print(f"Tag '{lab_name}' exists in the repository.")
             tag_commit = tag.commit
             current_commit = self.repo.head.commit
             if current_commit.hexsha == tag_commit.hexsha:
-                print(f"Tag '{lab_name}' is already up-to-date with the current commit.")
+                print(f"Tag '{lab_name}' exists and is already up-to-date with the current commit.")
             else:
-                print(f"Tag '{lab_name}' is out-of-date with the current commit.")
+                print(f"Tag '{lab_name}' exists and is out-of-date with the current commit.")
                 if force:
                     print("Forcing tag update")
                 else:
-                    print("Do you want to update the tag?")
-                    response = input("Enter 'yes' to update the tag: ")
+                    response = input("Do you want to update the tag? Enter 'yes' to update the tag: ")
                     if response.lower() != 'yes':
                         print("Tag update cancelled")
                         return False
@@ -204,7 +208,7 @@ class test_suite_320(repo_test_suite):
                 self.repo.delete_tag(lab_name)
                 new_tag = self.repo.create_tag(lab_name)
                 remote = self.repo.remote("origin")
-                remote.push(new_tag)
+                remote.push(new_tag, force=True)
         else:
             # Tag doesn't exist
             print(f"Tag '{lab_name}' does not exist in the repository. New tag will be created.")
@@ -212,6 +216,44 @@ class test_suite_320(repo_test_suite):
             remote = self.repo.remote("origin")
             remote.push(new_tag)
         return True
+
+    def check_commit_date(self, lab_name, timeout = 5 * 60, check_sleep_time = 15):
+        ''' Iteratively check the commit date associated with a tag lab submission. 
+        This is called after committing the lab to the repository to see if the commit date is updated.'''
+        initial_time = time.time()
+        while True:
+            # Fetch the remote tags
+            result = repo_test.get_remote_tags()
+            if not result:
+                return False
+            # See if the tag exists
+            tag = next((tag for tag in self.repo.tags if tag.name == lab_name), None)
+            if tag is None:
+                time.sleep(check_sleep_time)
+                continue
+            # Tag exists, fetch the remote to get all the files
+            repo_test.fetch_remote(self.repo)
+            # Get the commit associated with the tag
+            tag_commit = tag.commit
+            # See if the .commitdate file exists in root of repository
+
+            # Access the file from the commit
+            file_path = ".commitdate"
+            try:
+                file_content = (tag_commit.tree / file_path).data_stream.read().decode("utf-8")
+                print(f"Contents of '{file_path}' from tag '{lab_name}':\n")
+                print(file_content)
+                return True
+            except KeyError:
+                print(f"File '{file_path}' does not exist in the commit for tag '{lab_name}'.")
+
+            # Check if the timeout has been reached
+            if time.time() - initial_time > timeout:
+                print(f"Timeout reached for checking tag '{lab_name}' commit date.")
+                return False
+            # Wait for a bit before checking again
+            time.sleep(check_sleep_time)
+        return False
 
 def build_test_suite_320(assignment_name, max_repo_files = 20, start_date = None):
     """ A helper function used by 'main' functions to build a test suite based on command line arguments.
