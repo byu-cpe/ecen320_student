@@ -3,7 +3,6 @@
 import argparse
 import os
 import git
-import shutil
 import subprocess
 
 import repo_test
@@ -171,7 +170,7 @@ class test_suite_320(repo_test_suite):
 
     def submit_lab(self, lab_name, force = False):
         ''' Passoff a lab assignment '''
-        self.print("Running Submission")
+        self.print(f"Running Submission for {lab_name}")
         # Get all remote tags (is there a reliable way of doing this with Git Python?)
         try:
             result = subprocess.run(["git fetch --tags"], shell=True, capture_output=True, text=True)
@@ -179,16 +178,40 @@ class test_suite_320(repo_test_suite):
         except subprocess.CalledProcessError as e:
             self.print_error(f"Error fetching tags: {e}")
             return False
-        # See if there is a tag for the current assignment
-        return True
-
-        #   - Check to see if there is a tag for the current assignment. 
-        #     - If not, tag the repository, push the tag to the remote. (ask for permission first unless '--force' flag is given)
+        # Check if the tag exists in the repository
+        tag = next((tag for tag in self.repo.tags if tag.name == lab_name), None)
+        if tag is not None:
+            # Tag exists
         #     - If there is a tag:
         #       - Check to see if the tag code is different from the current commit. If not, exit saying it is already tagged and ready to submit
         #       - If the code is different, ask for permission to retag and push the tag to the remote. (ask for permission first unless '--force' flag is given)
-        #   - At the end of the script, see if the tag exists and the commit date has been updated.
-        pass
+            print(f"Tag '{lab_name}' exists in the repository.")
+            tag_commit = tag.commit
+            current_commit = self.repo.head.commit
+            if current_commit.hexsha == tag_commit.hexsha:
+                print(f"Tag '{lab_name}' is already up-to-date with the current commit.")
+            else:
+                print(f"Tag '{lab_name}' is out-of-date with the current commit.")
+                if force:
+                    print("Forcing tag update")
+                else:
+                    print("Do you want to update the tag?")
+                    response = input("Enter 'yes' to update the tag: ")
+                    if response.lower() != 'yes':
+                        print("Tag update cancelled")
+                        return False
+                # Tag is out of date
+                self.repo.delete_tag(lab_name)
+                new_tag = self.repo.create_tag(lab_name)
+                remote = self.repo.remote("origin")
+                remote.push(new_tag)
+        else:
+            # Tag doesn't exist
+            print(f"Tag '{lab_name}' does not exist in the repository. New tag will be created.")
+            new_tag = self.repo.create_tag(lab_name)
+            remote = self.repo.remote("origin")
+            remote.push(new_tag)
+        return True
 
 def build_test_suite_320(assignment_name, max_repo_files = 20, start_date = None):
     """ A helper function used by 'main' functions to build a test suite based on command line arguments.
