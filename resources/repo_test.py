@@ -95,7 +95,7 @@ def get_uncommitted_tracked_files(repo):
 
 def get_remote_tags():
     try:
-        result = subprocess.run(["git fetch --tags"], shell=True, capture_output=True, text=True)
+        result = subprocess.run(["git fetch --tags --force"], shell=True, capture_output=True, text=True)
         print(result.stdout)
     except subprocess.CalledProcessError as e:
         return False

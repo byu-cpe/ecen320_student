@@ -179,7 +179,7 @@ class test_suite_320(repo_test_suite):
 
     def submit_lab(self, lab_name, force = False):
         ''' Passoff a lab assignment '''
-        self.print(f"Running Submission for {lab_name}")
+        self.print(f"Attempting Submission for {lab_name}")
         result = repo_test.get_remote_tags()
         if not result:
             return False
@@ -209,7 +209,7 @@ class test_suite_320(repo_test_suite):
                     print("Forcing tag update")
                 else:
                     response = input("Do you want to update the tag? Enter 'yes' to update the tag: ")
-                    if response.lower() != 'yes':
+                    if response.lower()[0] != 'y':
                         print("Tag update cancelled")
                         return False
                 # Tag is out of date
@@ -225,11 +225,18 @@ class test_suite_320(repo_test_suite):
             remote.push(new_tag)
         return True
 
-    def check_commit_date(self, lab_name, timeout = 5 * 60, check_sleep_time = 10):
+    def check_commit_date(self, lab_name, timeout = 2 * 60, check_sleep_time = 10):
         ''' Iteratively check the commit date associated with a tag lab submission. 
         This is called after committing the lab to the repository to see if the commit date is updated.'''
         initial_time = time.time()
+        first_time = True
         while True:
+            # Wait for a bit before checking again if it isn't the first iteration
+            if first_time:
+                print(f"Waiting to check for commit file")
+                time.sleep(check_sleep_time)
+                first_time = False
+
             # Fetch the remote tags
             result = repo_test.get_remote_tags()
             if not result:
@@ -244,7 +251,7 @@ class test_suite_320(repo_test_suite):
             # Get the commit associated with the tag
             tag_commit = tag.commit
             # See if the .commitdate file exists in root of repository
-
+            print("DEBUG: tag exists and fetch worked")
             # Access the file from the commit
             file_path = ".commitdate"
             try:
@@ -259,9 +266,6 @@ class test_suite_320(repo_test_suite):
             if time.time() - initial_time > timeout:
                 print(f"Timeout reached for checking tag '{lab_name}' commit date.")
                 return False
-            # Wait for a bit before checking again
-            print(f"Waiting to check again")
-            time.sleep(check_sleep_time)
         return False
 
 def build_test_suite_320(assignment_name, max_repo_files = 20, start_date = None):
