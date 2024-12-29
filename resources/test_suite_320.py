@@ -21,17 +21,6 @@ from repo_test_suite import repo_test_suite
 #     It is different from the submit flag in that it does not actually tag the repository. Used for grading and checking code without resubmitting.
 #   - Have the script return the checkout to main when done (or cache the current branch and return to current branch)
 # - Submit Flag
-#   - Check to see if there are any modified tracked files that need to be committed. If so, exit with error saying that all files must be committed before submission.
-#     (this is necessary so that we can checkout the tag and not overwrite existing changes)
-#   - Check to see if the starter code has been updated (to match the date of the start of the assignment). If not, exit with error saying they need to udpate the starter cord
-#     Provide code to automatically update with the starter code?
-#   - Check to see if the files in the starter code have been changed locally. If so, exit with error saying they need to revert their starter code to the original.
-#   - Check to see if there is a tag for the current assignment. 
-#     - If not, tag the repository, push the tag to the remote. (ask for permission first unless '--force' flag is given)
-#     - If there is a tag:
-#       - Check to see if the tag code is different from the current commit. If not, exit saying it is already tagged and ready to submit
-#       - If the code is different, ask for permission to retag and push the tag to the remote. (ask for permission first unless '--force' flag is given)
-#   - At the end of the script, see if the tag exists and the commit date has been updated.
 #   - Other:
 #     - Add ability to checkout entire repository to a temporary directory and run the script on that directory rather than the local directory
 
@@ -262,6 +251,7 @@ class test_suite_320(repo_test_suite):
             file_content = repo_test.get_commit_file_contents(tag_commit, file_path)
             if file_content is not None:
                 print(f"Commit file created - submission complete")
+                print(file_content)
                 return True
             else:
                 print(f"Commit file '{file_path}' does not exist.")
