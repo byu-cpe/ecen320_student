@@ -201,7 +201,7 @@ class test_suite_320(repo_test_suite):
         #       - If the code is different, ask for permission to retag and push the tag to the remote. (ask for permission first unless '--force' flag is given)
             tag_commit = tag.commit
             current_commit = self.repo.head.commit
-            commit_file_contents = repo_test.get_file_content(tag_commit, ".commitdate")
+            commit_file_contents = repo_test.get_commit_file_contents(tag_commit, ".commitdate")
             if current_commit.hexsha == tag_commit.hexsha:
                 print(f"Tag '{lab_name}' exists and is already up-to-date with the current commit.")
                 if commit_file_contents is not None:
@@ -259,7 +259,7 @@ class test_suite_320(repo_test_suite):
             # See if the .commitdate file exists in root of repository
             # Access the file from the commit
             file_path = ".commitdate"
-            file_content = repo_test.get_file_content(tag_commit, file_path)
+            file_content = repo_test.get_commit_file_contents(tag_commit, file_path)
             if file_content is not None:
                 print(f"Commit file created - submission complete")
                 return True
