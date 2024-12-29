@@ -4,6 +4,7 @@ import argparse
 import os
 import git
 import shutil
+import subprocess
 
 import repo_test
 from repo_test_suite import repo_test_suite
@@ -142,68 +143,45 @@ class test_suite_320(repo_test_suite):
         """
         self.print_test_start_message()
         test_num = 1
+        result = True
         # First run the repository tests
         if self.repo_tests:
-            result = self.iterate_through_tests(self.repo_tests, start_step = test_num)
+            result = result and self.iterate_through_tests(self.repo_tests, start_step = test_num)
             test_num += len(self.repo_tests) 
+        if self.run_pre_build_tests:
+            result = result and self.iterate_through_tests(self.pre_build_tests, start_step = test_num)
+            test_num += len(self.pre_build_tests) 
+        if self.run_build_tests:
+            result = result and self.iterate_through_tests(self.build_tests, start_step = test_num)
+            test_num += len(self.build_tests) 
+        if self.run_post_build_tests:
+            result = result and self.iterate_through_tests(self.post_build_tests, start_step = test_num)
+            test_num += len(self.post_build_tests) 
+        if self.run_clean_tests:
+            result = result and self.iterate_through_tests(self.clean_tests, start_step = test_num)
+            test_num += len(self.clean_tests) 
         if self.perform_submit and self.repo_tests:
             if not result:
-                self.print_error("Cannot submit the lab due to errors in the repository")
+                self.print_error("Cannot submit the lab due to errors in passoff script")
                 return
             submit_status = self.submit_lab(self.test_name)
             if not submit_status:
                 return
-        if self.run_pre_build_tests:
-            result = self.iterate_through_tests(self.pre_build_tests, start_step = test_num)
-            test_num += len(self.pre_build_tests) 
-        if self.run_build_tests:
-            result = self.iterate_through_tests(self.build_tests, start_step = test_num)
-            test_num += len(self.build_tests) 
-        if self.run_post_build_tests:
-            result = self.iterate_through_tests(self.post_build_tests, start_step = test_num)
-            test_num += len(self.run_post_build_tests) 
-        if self.run_clean_tests:
-            result = self.iterate_through_tests(self.clean_tests, start_step = test_num)
-            test_num += len(self.clean_tests) 
         self.print_test_end_message()
 
     def submit_lab(self, lab_name, force = False):
         ''' Passoff a lab assignment '''
-        # # 1. Check to see if there are any modified tracked files that need to be committed. If so, exit.
-        # uncommitted_files = repo_test.get_uncommitted_tracked_files(self.repo)
-        # if uncommitted_files:
-        #     self.print_error("There are modified tracked files that need to be committed before submission.")
-        #     self.print_error("Please commit the following files:")
-        #     for file in uncommitted_files:
-        #         self.print_error(f"  {file}")
-        #     return False
-        # # 2. See if the remote and local match (need for push/pull)
-        # unpushed_commits = repo_test.get_unpushed_commits(self.repo)
-        # if unpushed_commits:
-        #     repo_test_suite.print_error('Local branch has unpushed commits:')
-        #     for commit in unpushed_commits:
-        #         repo_test_suite.print_error(f'  - {commit.hexsha[:7]}: {commit.message.strip()}')
-        #     return False
-        # # 3. Check for unpulled commits
-        # unpulled_commits = repo_test.get_unpulled_commits(self.repo)
-        # if unpulled_commits:
-        #     repo_test_suite.print_error('Local branch has unpulled commits:')
-        #     for commit in unpulled_commits:
-        #         repo_test_suite.print_error(f'  - {commit.hexsha[:7]}: {commit.message.strip()}')
-        #     return False
-        # # 4. Check starter code
-        # unpulled_commits = repo_test.get_unpulled_commits(repo_test_suite.repo, 
-        #     self.remote_name, self.remote_branch, self.last_date_of_remote_commit)
-        # if unpulled_commits:
-        #     repo_test_suite.print_error('Remote Branch has unpulled commits:')
-        #     for commit in unpulled_commits:
-        #         repo_test_suite.print_error(f'  - {commit.hexsha[:7]}: {commit.message.strip()}')
-        #     return self.warning_result()
+        self.print("Running Submission")
+        # Get all remote tags (is there a reliable way of doing this with Git Python?)
+        try:
+            result = subprocess.run(["git fetch --tags"], shell=True, capture_output=True, text=True)
+            print(result.stdout)
+        except subprocess.CalledProcessError as e:
+            self.print_error(f"Error fetching tags: {e}")
+            return False
+        # See if there is a tag for the current assignment
         return True
 
-        #   - Check to see if the starter code has been updated (to match the date of the start of the assignment). If not, exit with error saying they need to udpate the starter cord
-        #     Provide code to automatically update with the starter code?
-        #   - Check to see if the files in the starter code have been changed locally. If so, exit with error saying they need to revert their starter code to the original.
         #   - Check to see if there is a tag for the current assignment. 
         #     - If not, tag the repository, push the tag to the remote. (ask for permission first unless '--force' flag is given)
         #     - If there is a tag:

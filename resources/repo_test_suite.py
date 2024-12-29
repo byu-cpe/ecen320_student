@@ -158,7 +158,7 @@ class repo_test_suite():
         for idx, test in enumerate(list_of_tests):# (but no setup or wrap-up):
             self.print_test_status(f"Step {idx+start_step}. {test.module_name()}")
             result_obj = self.execute_test_module(test)
-            if result_obj.result != result_type.SUCCESS
+            if result_obj.result != result_type.SUCCESS:
                 set_result = False
         return set_result
 
