@@ -93,6 +93,14 @@ def get_uncommitted_tracked_files(repo):
     modified_files = [item.a_path for item in uncommitted_changes if item.change_type == 'M']
     return modified_files
 
+def get_remote_tags():
+    try:
+        result = subprocess.run(["git fetch --tags"], shell=True, capture_output=True, text=True)
+        print(result.stdout)
+    except subprocess.CalledProcessError as e:
+        return False
+    return True
+
 #########################################################3
 # Base repo test classes
 #########################################################3
