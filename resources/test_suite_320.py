@@ -208,7 +208,8 @@ class test_suite_320(repo_test_suite):
                 if force:
                     print("Forcing tag update")
                 else:
-                    response = input("Do you want to update the tag? Enter 'yes' to update the tag: ")
+                    print("Do you want to update the tag? Updating the tag will change the submission date.")
+                    response = input("Enter 'yes' to update the tag: ")
                     if response.lower()[0] != 'y':
                         print("Tag update cancelled")
                         return False
