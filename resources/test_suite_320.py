@@ -11,6 +11,7 @@ from repo_test_suite import repo_test_suite
 
 # ToDo:
 # - Lab check script:
+#   - The summaries at the end do not have enough informatino. Provide an option that givs more feedbak on what whet wrong and what to do (the log is so long i is hard to scroll back to see what happened)
 #   - Fix up the error reporting (return error object instead of printing)
 #   - Provide a link to the web page for instructions on how to address this problem
 #   - Check to see if the student has changed the starter code locally

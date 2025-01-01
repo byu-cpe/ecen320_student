@@ -36,3 +36,6 @@ set_msg_config -new_severity "INFO" -id "Synth 8-7080"
 set_msg_config -new_severity "INFO" -id "Synth 8-3917"
 #INFO: [Synth 8-11241] undeclared symbol 'mmcm2_clk1', assumed default net type 'wire' [/home/wirthlin/ee620/520-assignments-wirthlin/mmcm/mmcm_top.sv:150]
 set_msg_config -new_severity "ERROR" -id "Synth 8-11241"
+#WARNING: [Place 46-29] Timing had been disabled during Placer and, therefore, physical synthesis in Placer will be skipped.
+#  For non sequential circuits this message arrives. Ignore it for the labs that do not have sequential circuits.
+set_msg_config -new_severity "INFO" -id "Place 46-29"
