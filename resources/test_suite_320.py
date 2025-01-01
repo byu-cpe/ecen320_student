@@ -63,6 +63,7 @@ class test_suite_320(repo_test_suite):
         self.prepend_file_str = None # String to prepend to the file name when copying
         self.required_executables = required_executables
         self.perform_submit = submit
+        self.force = False
 
     def add_repo_tests(self, max_repo_files, tag_str = None, check_start_code = True, 
                             required_executables = None, remote_branch = "main"):
@@ -167,7 +168,7 @@ class test_suite_320(repo_test_suite):
                 return
         self.print_test_end_message()
 
-    def submit_lab(self, lab_name, force = False):
+    def submit_lab(self, lab_name):
         ''' Passoff a lab assignment '''
         self.print(f"Attempting Submission for {lab_name}")
         result = repo_test.get_remote_tags()
@@ -200,7 +201,7 @@ class test_suite_320(repo_test_suite):
                 print(f"Tag '{lab_name}' exists and is out-of-date with the current commit.")
                 if commit_file_contents is not None:
                     print(commit_file_contents)
-                if force:
+                if self.force:
                     print("Forcing tag update")
                 else:
                     print("Do you want to update the tag? Updating the tag will change the submission date.")
@@ -269,6 +270,7 @@ def build_test_suite_320(assignment_name, max_repo_files = 20, start_date = None
     parser = argparse.ArgumentParser(description=f"Test suite for 320 Assignment: {assignment_name}")
     parser.add_argument("--submit",  action="store_true", help="Submit the assignment to the remote repository (tag and push)")
     parser.add_argument("--repo", help="Path to the local repository to test (default is current directory)")
+    parser.add_argument("--force", action="store_true", help="Force submit (no prompt)")
     parser.add_argument("--norepo", action="store_true", help="Do not run Repo tests")
     parser.add_argument("--nobuild", action="store_true", help="Do not run build tests")
     parser.add_argument("--noclean", action="store_true", help="Do not run clean tests")
@@ -294,6 +296,7 @@ def build_test_suite_320(assignment_name, max_repo_files = 20, start_date = None
     test_suite = test_suite_320(repo, assignment_name,
         max_repo_files = max_repo_files, summary_log_filename = summary_log_filename, submit = args.submit,
         starter_branch = args.starterbranch)
+    test_suite.force = args.force
 
     # Decide which tests to run
     if args.norepo:
