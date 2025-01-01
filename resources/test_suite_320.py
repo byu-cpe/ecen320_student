@@ -252,16 +252,15 @@ class test_suite_320(repo_test_suite):
             file_path = ".commitdate"
             file_content = repo_test.get_commit_file_contents(tag_commit, file_path)
             if file_content is not None:
-                print(f"Commit file created - submission complete")
-                print(file_content)
+                self.print(f"Commit file created - submission complete")
+                self.print(file_content)
                 return True
-            else:
-                print(f"Commit file '{file_path}' does not exist.")
 
             # Check if the timeout has been reached
             if time.time() - initial_time > timeout:
                 print(f"Timeout reached for checking tag '{lab_name}' commit date.")
                 return False
+            self.print_error(f"Github Submission commit file '{file_path}' not yet created - waiting")
         return False
 
 def build_test_suite_320(assignment_name, max_repo_files = 20, start_date = None):
