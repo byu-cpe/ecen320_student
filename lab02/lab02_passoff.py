@@ -16,8 +16,8 @@ def main():
     # Check on vivado
     tester = test_suite_320.build_test_suite_320("lab02", start_date="01/20/2025")
     tester.add_Makefile_rule("sim_adder", ["sim_adder.tcl"], ["sim_adder.log"])
-    tester.add_Makefile_rule("bottom", ["aboutme.txt"], ["bottom.txt"])
-    tester.add_required_tracked_files(["netid.jpg"])
+    tester.add_Makefile_rule("synth_adder", ["synth_adder.tcl"], ["synth_adder.log"])
+    tester.add_Makefile_rule("implement_adder", ["implement_adder.tcl"], ["implement_adder.log"])
     tester.run_tests()
 
 if __name__ == "__main__":
