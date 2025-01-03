@@ -19,7 +19,7 @@ def main():
     tester.add_Makefile_rule("upper", ["aboutme.txt"], ["upper.txt"])
     tester.add_Makefile_rule("lineno", ["aboutme.txt"], ["lineno.txt"])
     tester.add_Makefile_rule("bottom", ["aboutme.txt"], ["bottom.txt"])
-    tester.add_required_tracked_files(["netid.jpg"])
+    tester.add_required_tracked_files(["netid.png"])
     tester.run_tests()
 
 if __name__ == "__main__":
