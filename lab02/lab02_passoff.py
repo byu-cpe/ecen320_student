@@ -19,6 +19,8 @@ def main():
     tester.add_Makefile_rule("synth_adder", ["synth_adder.tcl"], ["synth_adder.log", "binary_adder_synth.dcp"])
     tester.add_Makefile_rule("implement_adder", ["implement_adder.tcl"], ["implement_adder.log", "binary_adder.bit", 
                                                                           "binary_adder.dcp", "utilization.rpt"])
+    tester.add_required_tracked_files(["sim_waveform.png", "schematic.png"])
+    
     tester.run_tests()
 
 if __name__ == "__main__":
