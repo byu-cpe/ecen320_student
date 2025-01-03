@@ -3,33 +3,25 @@
 import argparse
 import os
 import git
-import shutil
+import subprocess
+import time
 
 import repo_test
 from repo_test_suite import repo_test_suite
 
 # ToDo:
 # - Lab check script:
-#   - Check to see if the starter code has been updated (to match the date of the tag or main if there is no tag)
-#     - Compare the starter code to the existing code (manually change stater code?)
+#   - The summaries at the end do not have enough informatino. Provide an option that givs more feedbak on what whet wrong and what to do (the log is so long i is hard to scroll back to see what happened)
+#   - Fix up the error reporting (return error object instead of printing)
+#   - Provide a link to the web page for instructions on how to address this problem
+#   - Check to see if the student has changed the starter code locally
+#   - Provide a way for having the simulation environment return an error when the testbench fails (lab 2)
 #   - For uncommitted files, should we only check for the current directory or the entire repo?
-#   - Provide a way for having the simulation environment return an error when the testbench fails
-#   - Check to see if the committed changes have been pushed to the remote repository
-#   - Check to see if an executable exists (such as vivado). Exit on error. (lab 2)
 # - tag flag
 #   - The tag flag is used to checkout a specific tag before running the script. This is used to check out the code at the time of submission and run
 #     It is different from the submit flag in that it does not actually tag the repository. Used for grading and checking code without resubmitting.
+#   - Have the script return the checkout to main when done (or cache the current branch and return to current branch)
 # - Submit Flag
-#   - Check to see if there are any modified tracked files that need to be committed. If so, exit with error saying that all files must be committed before submission.
-#     (this is necessary so that we can checkout the tag and not overwrite existing changes)
-#   - Check to see if the starter code has been updated (to match the date of the start of the assignment). If not, exit with error saying they need to udpate the starter cord
-#     Provide code to automatically update with the starter code?
-#   - Check to see if the files in the starter code have been changed locally. If so, exit with error saying they need to revert their starter code to the original.
-#   - Check to see if there is a tag for the current assignment. 
-#     - If not, tag the repository, push the tag to the remote. (ask for permission first unless '--force' flag is given)
-#     - If there is a tag:
-#       - Check to see if the tag code is different from the current commit. If not, exit saying it is already tagged and ready to submit
-#       - If the code is different, ask for permission to retag and push the tag to the remote. (ask for permission first unless '--force' flag is given)
 #   - Other:
 #     - Add ability to checkout entire repository to a temporary directory and run the script on that directory rather than the local directory
 
@@ -40,25 +32,29 @@ from repo_test_suite import repo_test_suite
 # * Instructions on the passoff script
 
 class test_suite_320(repo_test_suite):
-    """ 
+    ''' 
     Represents a suite of tests to perform on a ECEN 320 repository. The tests are divided into several
     categories that are executed in a specific order:
         self.pre_build_tests: Tests that are run on the repository to check for integrity (before build)
         self.build_tests: Tests that are run involving a build process (generates temporary files, etc.)
         self.post_build_tests: Tests that are run after the build and before the clean (used for checking)
         self.clean_tests: Tests used to clean up and check the repository
-    """
+    '''
 
     def __init__(self, repo, assignment_name, max_repo_files = 20, summary_log_filename = None,
-                 required_executables = None):
+                 required_executables = None, submit = False, starter_branch = "main"):
         super().__init__(repo, test_name = assignment_name, summary_log_filename = summary_log_filename)
+        # Initialize the sets of tests
+        self.repo_tests = []
         self.pre_build_tests = []
         self.build_tests = []
         self.post_build_tests = []
         self.clean_tests = []
         #self.add_pre_build_tests(max_repo_files, tag_str = assignment_name)
-        self.add_pre_build_tests(max_repo_files)  # Check tag as part of submit flag
+        self.add_repo_tests(max_repo_files, remote_branch = starter_branch)
+        self.add_pre_build_tests()
         self.add_clean_tests()
+
         self.run_pre_build_tests = True
         self.run_build_tests = True
         self.run_post_build_tests = True
@@ -66,21 +62,24 @@ class test_suite_320(repo_test_suite):
         self.copy_file_dir = None # Location to copy generated build files
         self.prepend_file_str = None # String to prepend to the file name when copying
         self.required_executables = required_executables
+        self.perform_submit = submit
+        self.force = False
 
-    def add_pre_build_tests(self, max_repo_files, tag_str = None, 
-                       list_git_commits = False, check_start_code = False, min_err_commits = None,
-                       required_executables = None):
-        """ Add default tests that should be executed before any building. """
-        if list_git_commits:
-            self.add_pre_build_test(repo_test.list_git_commits())
-        if min_err_commits is not None:
-            self.add_pre_build_test(get_err_git_commits(min_err_commits))
-        self.add_pre_build_test(repo_test.check_for_uncommitted_files())
-        self.add_pre_build_test(repo_test.check_for_max_repo_files(max_repo_files))
+    def add_repo_tests(self, max_repo_files, tag_str = None, check_start_code = True, 
+                            required_executables = None, remote_branch = "main"):
+        """ Add tests that check the state of the repo """
+        self.add_repo_test(repo_test.check_for_uncommitted_files())
+        self.add_repo_test(repo_test.check_remote_origin())
+        self.add_repo_test(repo_test.check_for_max_repo_files(max_repo_files))
         if check_start_code:
-            self.add_pre_build_test(repo_test.check_remote_updates("startercode"))
+            self.add_repo_test(repo_test.check_remote_starter("startercode", remote_branch = remote_branch))
         if tag_str is not None:
-            self.add_pre_build_test(repo_test.check_for_tag(tag_str))
+            self.add_repo_test(repo_test.check_for_tag(tag_str))
+        if required_executables is not None:
+            self.add_repo_test(repo_test.execs_exist_test(required_executables))
+
+    def add_pre_build_tests(self, required_executables = None):
+        """ Add default tests that should be executed before any building. """
         if required_executables is not None:
             self.add_pre_build_test(repo_test.execs_exist_test(required_executables))
 
@@ -89,6 +88,9 @@ class test_suite_320(repo_test_suite):
         self.add_clean_test(repo_test.check_for_untracked_files())
         self.add_clean_test(repo_test.make_test("clean"))
         self.add_clean_test(repo_test.check_for_ignored_files())
+
+    def add_repo_test(self,test):
+        self.repo_tests.append(test)
 
     def add_pre_build_test(self,test):
         self.pre_build_tests.append(test)
@@ -132,30 +134,147 @@ class test_suite_320(repo_test_suite):
         """
         self.print_test_start_message()
         test_num = 1
+        final_result = True
+        # First run the repository tests
+        if self.repo_tests:
+            result = self.iterate_through_tests(self.repo_tests, start_step = test_num)
+            test_num += len(self.repo_tests)
+            final_result = final_result and result 
         if self.run_pre_build_tests:
-            self.iterate_through_tests(self.pre_build_tests, start_step = test_num)
+            result = self.iterate_through_tests(self.pre_build_tests, start_step = test_num)
             test_num += len(self.pre_build_tests) 
+            final_result = final_result and result 
         if self.run_build_tests:
-            self.iterate_through_tests(self.build_tests, start_step = test_num)
+            result = self.iterate_through_tests(self.build_tests, start_step = test_num)
             test_num += len(self.build_tests) 
+            final_result = final_result and result 
         if self.run_post_build_tests:
-            self.iterate_through_tests(self.post_build_tests, start_step = test_num)
-            test_num += len(self.build_tests) 
+            result = self.iterate_through_tests(self.post_build_tests, start_step = test_num)
+            test_num += len(self.post_build_tests) 
+            final_result = final_result and result 
         if self.run_clean_tests:
-            self.iterate_through_tests(self.clean_tests, start_step = test_num)
+            result = self.iterate_through_tests(self.clean_tests, start_step = test_num)
             test_num += len(self.clean_tests) 
+            final_result = final_result and result 
+        if self.perform_submit and self.repo_tests:
+            if not final_result:
+                self.print_error("Cannot submit the lab due to errors in passoff script")
+                return
+            submit_status = self.submit_lab(self.test_name)
+            if not submit_status:
+                return
+            check_commit_date_status = self.check_commit_date(self.test_name)
+            if not check_commit_date_status:
+                return
         self.print_test_end_message()
+
+    def submit_lab(self, lab_name):
+        ''' Passoff a lab assignment '''
+        self.print(f"Attempting Submission for {lab_name}")
+        result = repo_test.get_remote_tags()
+        if not result:
+            return False
+        # Get all remote tags (is there a reliable way of doing this with Git Python?)
+        # try:
+        #     result = subprocess.run(["git fetch --tags"], shell=True, capture_output=True, text=True)
+        #     print(result.stdout)
+        # except subprocess.CalledProcessError as e:
+        #     self.print_error(f"Error fetching tags: {e}")
+        #     return False
+        # Check if the tag exists in the repository
+        tag = next((tag for tag in self.repo.tags if tag.name == lab_name), None)
+        if tag is not None:
+            #wirthlin@BYU-GCXHGWLQP6 lab01 % git push --delete origin lab01
+            #wirthlin@BYU-GCXHGWLQP6 lab01 % git tag --delete lab01
+            # Tag exists
+        #     - If there is a tag:
+        #       - Check to see if the tag code is different from the current commit. If not, exit saying it is already tagged and ready to submit
+        #       - If the code is different, ask for permission to retag and push the tag to the remote. (ask for permission first unless '--force' flag is given)
+            tag_commit = tag.commit
+            current_commit = self.repo.head.commit
+            commit_file_contents = repo_test.get_commit_file_contents(tag_commit, ".commitdate")
+            if current_commit.hexsha == tag_commit.hexsha:
+                print(f"Tag '{lab_name}' exists and is already up-to-date with the current commit.")
+                if commit_file_contents is not None:
+                    print(commit_file_contents)
+            else:
+                print(f"Tag '{lab_name}' exists and is out-of-date with the current commit.")
+                if commit_file_contents is not None:
+                    print(commit_file_contents)
+                if self.force:
+                    print("Forcing tag update")
+                else:
+                    print("Do you want to update the tag? Updating the tag will change the submission date.")
+                    response = input("Enter 'yes' to update the tag: ")
+                    if response.lower()[0] != 'y':
+                        print("Tag update cancelled")
+                        return False
+                # Tag is out of date
+                self.repo.delete_tag(lab_name)
+                new_tag = self.repo.create_tag(lab_name)
+                remote = self.repo.remote("origin")
+                remote.push(new_tag, force=True)
+        else:
+            # Tag doesn't exist
+            print(f"Tag '{lab_name}' does not exist in the repository. New tag will be created.")
+            new_tag = self.repo.create_tag(lab_name)
+            remote = self.repo.remote("origin")
+            remote.push(new_tag)
+        return True
+
+    def check_commit_date(self, lab_name, timeout = 2 * 60, check_sleep_time = 10):
+        ''' Iteratively check the commit date associated with a tag lab submission. 
+        This is called after committing the lab to the repository to see if the commit date is updated.'''
+        initial_time = time.time()
+        first_time = True
+        while True:
+            # Wait for a bit before checking again if it isn't the first iteration
+            if not first_time:
+                print(f"Waiting to check for commit file")
+                time.sleep(check_sleep_time)
+                first_time = False
+
+            # Fetch the remote tags
+            result = repo_test.get_remote_tags()
+            if not result:
+                return False
+            # See if the tag exists
+            tag = next((tag for tag in self.repo.tags if tag.name == lab_name), None)
+            if tag is None:
+                time.sleep(check_sleep_time)
+                continue
+            # Tag exists, fetch the remote to get all the files
+            repo_test.fetch_remote(self.repo)
+            # Get the commit associated with the tag
+            tag_commit = tag.commit
+            # See if the .commitdate file exists in root of repository
+            # Access the file from the commit
+            file_path = ".commitdate"
+            file_content = repo_test.get_commit_file_contents(tag_commit, file_path)
+            if file_content is not None:
+                self.print(f"Commit file created - submission complete")
+                self.print(file_content)
+                return True
+
+            # Check if the timeout has been reached
+            if time.time() - initial_time > timeout:
+                print(f"Timeout reached for checking tag '{lab_name}' commit date.")
+                return False
+            self.print_error(f"Github Submission commit file '{file_path}' not yet created - waiting")
+        return False
 
 def build_test_suite_320(assignment_name, max_repo_files = 20, start_date = None):
     """ A helper function used by 'main' functions to build a test suite based on command line arguments.
     """
     parser = argparse.ArgumentParser(description=f"Test suite for 320 Assignment: {assignment_name}")
-    parser.add_argument("--submit", help="Submit the assignment to the remote repository (tag and push)")
+    parser.add_argument("--submit",  action="store_true", help="Submit the assignment to the remote repository (tag and push)")
     parser.add_argument("--repo", help="Path to the local repository to test (default is current directory)")
+    parser.add_argument("--force", action="store_true", help="Force submit (no prompt)")
     parser.add_argument("--norepo", action="store_true", help="Do not run Repo tests")
     parser.add_argument("--nobuild", action="store_true", help="Do not run build tests")
     parser.add_argument("--noclean", action="store_true", help="Do not run clean tests")
     parser.add_argument("--log", type=str, help="Save output to a log file (relative file path)")
+    parser.add_argument("--starterbranch", type=str, default = "main", help="Branch for starter code to check")
     parser.add_argument("--copy", type=str, help="Copy generated files to a directory")
     parser.add_argument("--copy_file_str", type=str, help="Customized the copy file by prepending filenames with given string")
     args=parser.parse_args()
@@ -174,7 +293,10 @@ def build_test_suite_320(assignment_name, max_repo_files = 20, start_date = None
 
     # Build test suite
     test_suite = test_suite_320(repo, assignment_name,
-        max_repo_files = max_repo_files, summary_log_filename = summary_log_filename)
+        max_repo_files = max_repo_files, summary_log_filename = summary_log_filename, submit = args.submit,
+        starter_branch = args.starterbranch)
+    test_suite.force = args.force
+
     # Decide which tests to run
     if args.norepo:
         test_suite.run_pre_build_tests = False

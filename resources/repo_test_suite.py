@@ -153,10 +153,14 @@ class repo_test_suite():
 
 
     def iterate_through_tests(self, list_of_tests, start_step = 1):
-        ''' Run list of tests '''
+        ''' Run list of tests. Return True if all tests pass, False otherwise '''
+        set_result = True
         for idx, test in enumerate(list_of_tests):# (but no setup or wrap-up):
             self.print_test_status(f"Step {idx+start_step}. {test.module_name()}")
-            self.execute_test_module(test)
+            result_obj = self.execute_test_module(test)
+            if result_obj.result != result_type.SUCCESS:
+                set_result = False
+        return set_result
 
     def execute_test_module(self, test_module):
         ''' Executes the 'perform_test' function of the tester_module and logs its result in the log file '''
