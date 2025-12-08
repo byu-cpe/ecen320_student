@@ -9,6 +9,8 @@ import repo_test
 from repo_test_suite import RepoTestSuite
 from datetime import datetime
 
+import repo_test_suite
+
 # ToDo:
 # - Lab check script:
 #   - The summaries at the end do not have enough information. Provide an option that givs more feedbak on what whet wrong and what to do (the log is so long i is hard to scroll back to see what happened)
@@ -78,12 +80,13 @@ class TestSuite320(RepoTestSuite):
         remote_branch="main",
     ):
         """Add tests that check the state of the repo"""
-        self.add_repo_test(repo_test.CheckForUncommittedFiles())
-        self.add_repo_test(repo_test.CheckRemoteOrigin())
-        self.add_repo_test(repo_test.CheckForMaxRepoFiles(max_repo_files))
+        self.add_repo_test(repo_test.CheckForUncommittedFiles(self))
+        self.add_repo_test(repo_test.CheckRemoteOrigin(self))
+        self.add_repo_test(repo_test.CheckForMaxRepoFiles(self, max_repo_files))
         if check_start_code:
             self.add_repo_test(
                 repo_test.CheckRemoteStarter(
+                    self,
                     "startercode",
                     remote_branch=remote_branch,
                     last_date_of_remote_commit=self.starter_check_date,
@@ -101,9 +104,9 @@ class TestSuite320(RepoTestSuite):
 
     def add_clean_tests(self):
         """Add three repo clean tests (untracked files, make clean, and ignored files)"""
-        self.add_clean_test(repo_test.CheckForUntrackedFiles())
-        self.add_clean_test(repo_test.MakeTest("clean"))
-        self.add_clean_test(repo_test.CheckForIgnoredFiles())
+        self.add_clean_test(repo_test.CheckForUntrackedFiles(self))
+        self.add_clean_test(repo_test.MakeTest(self, "clean"))
+        self.add_clean_test(repo_test.CheckForIgnoredFiles(self))
 
     def add_repo_test(self, test):
         self.repo_tests.append(test)
@@ -129,6 +132,7 @@ class TestSuite320(RepoTestSuite):
     ):
         """Add a makefile rule test"""
         make_test = repo_test.MakeTest(
+            self,
             make_rule,
             required_input_files=required_input_files,
             required_build_files=required_build_files,
@@ -148,15 +152,15 @@ class TestSuite320(RepoTestSuite):
         # Add test to see if the file was generated (in the current working directory)
         # check_file_test = repo_test.file_exists_test(file_list, copy_dir = self.copy_file_dir, prepend_file_str = self.prepend_file_str)
         check_file_test = repo_test.FileExistsTest(
-            file_list
+            self, file_list
         )  # Commented out copying. No need to copy existing files, only need to copy built files
         self.add_post_build_test(check_file_test)
         # Add test to make sure the file is not committed in the repository
         if check_files_not_tracked:
-            non_committed_files_test = repo_test.FileNotTrackedTest(file_list)
+            non_committed_files_test = repo_test.FileNotTrackedTest(self, file_list)
             self.add_post_build_test(non_committed_files_test)
         if check_tracked_files:
-            committed_files_test = repo_test.FileTrackedTest(file_list)
+            committed_files_test = repo_test.FileTrackedTest(self, file_list)
             self.add_post_build_test(committed_files_test)
 
     def add_required_tracked_files(self, file_list):
@@ -191,7 +195,7 @@ class TestSuite320(RepoTestSuite):
             result = self.iterate_through_tests(self.clean_tests, start_step=test_num)
             test_num += len(self.clean_tests)
             final_result = final_result.merge(result)
-        self.print_test_title(f"Test completed '{self.test_name}'")
+        self.print_test_message(f"Test completed '{self.test_name}'")
         # Submission checks
         all_tests_run = (
             self.run_pre_build_tests
@@ -200,7 +204,7 @@ class TestSuite320(RepoTestSuite):
             and self.run_clean_tests
         )
         if self.perform_submit:
-            self.print_test_success(f"Attempting Submission for '{self.test_name}'")
+            self.print_test_title(f"Attempting Submission for '{self.test_name}'")
             ready_for_submission = True
             # If performing a submit, the final messages will be related to the submission process
             if not all_tests_run:
@@ -225,7 +229,7 @@ class TestSuite320(RepoTestSuite):
                 return
         else:  # Not performing a submit. Provide messages related to the status of the submit
             self.print_test_summary()
-            self.print_test_header(f"\nSubmission status for '{self.test_name}'")
+            self.print_test_message(f"\nSubmission status for '{self.test_name}'")
             # See if there is a lab tag already submitted
             lab_tag_commit = self.get_lab_tag_commit(self.test_name)
             if lab_tag_commit is not None:  # there is a current submission

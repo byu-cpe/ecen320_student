@@ -1,9 +1,10 @@
 #!/usr/bin/python3
 
-import pathlib
 import os
+import pathlib
+
 import git
-from repo_test import ResultType
+from mytypes import ResultType
 
 
 class TermColor:
@@ -127,13 +128,15 @@ class RepoTestSuite:
         """Prints a message using the 'warning_color'"""
         self.print_color(self.warning_color, message)
 
-    def print_test_header(self, message):
+    def print_test_message(self, message):
         self.print_color(self.test_color, message)
 
     def print_test_title(self, message):
-        self.print_test_header("#" * 80)
-        self.print_test_header(message)
-        self.print_test_header("#" * 80)
+        print()
+        self.print_test_message("#" * 80)
+        self.print_test_message(message)
+        self.print_test_message("#" * 80)
+        print()
 
     def print_test_success(self, message):
         self.print_color(self.success_color, message)
@@ -186,9 +189,7 @@ class RepoTestSuite:
         """Run list of tests. Return True if all tests pass, False otherwise"""
         set_result = ResultType.SUCCESS
         for idx, test in enumerate(list_of_tests):  # (but no setup or wrap-up):
-            self.print_test_header(
-                f"##### Step {idx+start_step}. {test.module_name()} #####"
-            )
+            self.print_test_message(f"Step {idx+start_step}. {test.module_name()}")
             result_obj = self.execute_test_module(test)
             set_result = set_result.merge(result_obj.result)
         return set_result
@@ -202,7 +203,7 @@ class RepoTestSuite:
         #     return False
 
         module_name = test_module.module_name()
-        result = test_module.perform_test(self)
+        result = test_module.perform_test()
         self.test_results[test_module] = result
         if result.result == ResultType.SUCCESS:
             self.print_test_success(f"Success: {module_name}\n")

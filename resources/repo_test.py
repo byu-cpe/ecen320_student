@@ -7,18 +7,22 @@ Several generic test classes are included that could be used in any
 type of repository.
 """
 
-import subprocess
-import os
-import sys
-from enum import Enum
-from git import Repo
 import datetime
-import time
-import threading
-import queue
+import os
 import pathlib
-import shutil
+import queue
 import re
+import shutil
+import subprocess
+import sys
+import tempfile
+import threading
+import time
+from enum import Enum
+
+from git import Repo
+from mytypes import ResultType
+from repo_test_suite import RepoTestSuite
 
 ##########################################################
 # Useful static functions for manipulating and querying git repos
@@ -140,16 +144,6 @@ def get_commit_file_contents(commit, file_path):
 #########################################################3
 
 
-class ResultType(Enum):
-    SUCCESS = 1
-    WARNING = 2
-    ERROR = 3
-
-    def merge(self, other: "ResultType") -> "ResultType":
-        """Return the more severe of the two statuses."""
-        return self if self.value >= other.value else other
-
-
 class RepoTestResult:
     """Class for indicating the result of a repo test"""
 
@@ -168,9 +162,16 @@ class RepoTest:
     """
 
     def __init__(
-        self, abort_on_error=True, process_output_filename=None, timeout_seconds=0
+        self,
+        repo_test_suite,
+        *,
+        abort_on_error=True,
+        process_output_filename=None,
+        timeout_seconds=0,
     ):
         """Initialize the test module with a repo object"""
+        assert isinstance(repo_test_suite, RepoTestSuite)
+        self.repo_test_suite = repo_test_suite
         self.abort_on_error = abort_on_error
         self.process_output_filename = process_output_filename
         # List of files that should be deleted after the test is done (i.e., log files)
@@ -181,9 +182,9 @@ class RepoTest:
         """returns a string indicating the name of the module. Used for logging."""
         return "BASE MODULE"
 
-    def perform_test(self, repo_test_suite):
+    def perform_test(self):
         """This function should be overridden by a subclass. It performs the test using
-        the repo_test_suite object to obtain test-specific information."""
+        the self.repo_test_suite object to obtain test-specific information."""
         return False
 
     def success_result(self, msg=None):
@@ -203,7 +204,7 @@ class RepoTest:
             else:
                 break
 
-    def execute_command(self, repo_test_suite, proc_cmd, process_output_filename=None):
+    def execute_command(self, proc_cmd, process_output_filepath=None, print_dots=True):
         """Completes a sub-process command. and print to a file and stdout.
         Args:
             proc_cmd -- The string command to be executed.
@@ -217,77 +218,96 @@ class RepoTest:
         Returns: the sub-process return code
         """
 
-        fp = None
-        if repo_test_suite.log_dir is not None and process_output_filename is not None:
-            if not os.path.exists(self.repo_test_suite.log_dir):
-                os.makedirs(self.repo_test_suite.log_dir)
-            process_output_filepath = self.log_dir + "/" + process_output_filename
-            fp = open(process_output_filepath, "w")
-            if not fp:
-                repo_test_suite.print_error(
-                    "Error opening file for writing:", process_output_filepath
-                )
-                return -1
-            repo_test_suite.print("Writing output to:", process_output_filepath)
-            self.files_to_delete.append(process_output_filepath)
         cmd_str = " ".join(proc_cmd)
-        message = (
-            "Executing the following command in directory:"
-            + str(repo_test_suite.working_path)
-            + ":"
-            + str(cmd_str)
-        )
-        repo_test_suite.print(message)
-        if fp:
-            fp.write(message + "\n")
-        # Execute command
-        start_time = time.time()
-        proc = subprocess.Popen(
-            proc_cmd,
-            cwd=repo_test_suite.working_path,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            universal_newlines=True,
-        )
-        output_queue = queue.Queue()
-        output_thread = threading.Thread(
-            target=RepoTest.read_stdout_to_queue_thread, args=(proc, output_queue)
-        )
-        output_thread.start()
+        message = f"Executing the following command in directory {self.repo_test_suite.working_path}: {cmd_str} "
+        self.repo_test_suite.print(message)
 
-        while proc.poll() is None and output_thread.is_alive():
-            try:
-                line = output_queue.get(timeout=1.0)
-                line = line + "\n"
-                if repo_test_suite.print_to_stdout:
-                    sys.stdout.write(line)
-                    sys.stdout.flush()
-                if repo_test_suite.test_log_fp:
-                    repo_test_suite.test_log_fp.write(line)
-                    repo_test_suite.test_log_fp.flush()
-                if fp:
-                    fp.write(line)
-                    fp.flush()
-            except queue.Empty:
-                # If the queue is empty, just move on: we waited for output and will try again
-                pass
-            if self.timeout_seconds > 0:
-                elapsed_time = time.time() - start_time
-                if elapsed_time > self.timeout_seconds:
-                    # Timeout exceeded, terminate the process
-                    repo_test_suite.print_error(
-                        f"Process exceeded {self.timeout_seconds} seconds and was terminated."
-                    )
-                    proc.terminate()
-                    return 1
-        proc.communicate()
-        return proc.returncode
+        if process_output_filepath is None:
+            cm = tempfile.NamedTemporaryFile(delete=False, mode="w+t", encoding="utf-8")
+            filename = cm.name
+        else:
+            cm = open(process_output_filepath, "w", encoding="utf-8")
+            filename = process_output_filepath
+            self.files_to_delete.append(process_output_filepath)
+
+        self.repo_test_suite.print(f"Writing output to: {filename}")
+
+        with cm as fp:
+            fp.write(message + "\n")
+
+            # Execute command
+            start_time = time.time()
+            proc = subprocess.Popen(
+                proc_cmd,
+                cwd=self.repo_test_suite.working_path,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                universal_newlines=True,
+            )
+            output_queue = queue.Queue()
+            output_thread = threading.Thread(
+                target=RepoTest.read_stdout_to_queue_thread, args=(proc, output_queue)
+            )
+            output_thread.start()
+
+            last_dot_time = start_time
+            while proc.poll() is None and output_thread.is_alive():
+                try:
+                    line = output_queue.get(timeout=1.0)
+                    line = line + "\n"
+                    if self.repo_test_suite.print_to_stdout:
+                        pass
+                        # sys.stdout.write(line)
+                        # sys.stdout.flush()
+                    if self.repo_test_suite.test_log_fp:
+                        self.repo_test_suite.test_log_fp.write(line)
+                        self.repo_test_suite.test_log_fp.flush()
+                    if fp:
+                        fp.write(line)
+                        fp.flush()
+                except queue.Empty:
+                    # If the queue is empty, just move on: we waited for output and will try again
+                    pass
+
+                # Print a dot every 10 seconds to show progress
+                if print_dots:
+                    current_time = time.time()
+                    if current_time - last_dot_time >= 5:
+                        sys.stdout.write(".")
+                        sys.stdout.flush()
+                        last_dot_time = current_time
+
+                if self.timeout_seconds > 0:
+                    elapsed_time = time.time() - start_time
+                    if elapsed_time > self.timeout_seconds:
+                        # Timeout exceeded, terminate the process
+                        self.repo_test_suite.print_error(
+                            f"Process exceeded {self.timeout_seconds} seconds and was terminated."
+                        )
+                        proc.terminate()
+                        return 1
+            proc.communicate()
+            print()
+            return proc.returncode
 
     def cleanup(self):
         """Cleanup any files that were created by the test."""
         for file in self.files_to_delete:
             if os.path.exists(file):
                 os.remove(file)
+
+    def print_files(self, files, severity):
+        MAX_NUM_PRINTED_FILES = 10
+        assert severity in (ResultType.WARNING, ResultType.ERROR)
+        print_fcn = (
+            self.repo_test_suite.print_warning
+            if severity == ResultType.WARNING
+            else self.repo_test_suite.print_error
+        )
+        for file in files[:MAX_NUM_PRINTED_FILES]:
+            print_fcn(f"  {file}")
+        if len(files) > MAX_NUM_PRINTED_FILES:
+            print_fcn(f"  ... and {len(files) - MAX_NUM_PRINTED_FILES} more files.")
 
 
 #########################################################3
@@ -306,6 +326,7 @@ class FileExistsTest(RepoTest):
 
     def __init__(
         self,
+        repo_test_suite,
         repo_file_list,
         abort_on_error=True,
         copy_dir=None,
@@ -315,7 +336,7 @@ class FileExistsTest(RepoTest):
         """repo_file_list is a list of files that should exist in the repo directory.
         copy_dir : the directory to copy the file should the file exist
         prepend_file_str : a string to prepend to the file name when copying"""
-        super().__init__(abort_on_error)
+        super().__init__(repo_test_suite, abort_on_error=abort_on_error)
         self.repo_file_list = repo_file_list
         self.copy_dir = copy_dir
         self.prepend_file_str = prepend_file_str
@@ -327,21 +348,21 @@ class FileExistsTest(RepoTest):
             name_str += f"{repo_file}, "
         return name_str[:-2]  # Remove the last two characters (', ')
 
-    def perform_test(self, repo_test_suite):
+    def perform_test(self):
         return_val = True
         existing_files = []
         for repo_file in self.repo_file_list:
-            file_path = repo_test_suite.working_path / repo_file
+            file_path = self.repo_test_suite.working_path / repo_file
             if not os.path.exists(file_path):
-                repo_test_suite.print_error(f"File does not exist: {file_path}")
+                self.repo_test_suite.print_error(f"File does not exist: {file_path}")
                 return_val = False
             else:
-                repo_test_suite.print(f"File exists: {file_path}")
+                self.repo_test_suite.print(f"File exists: {file_path}")
                 existing_files.append(file_path)
         if self.copy_dir is not None:
             # Copy files to the copy directory
             if not os.path.exists(self.copy_dir):
-                repo_test_suite.print_error(
+                self.repo_test_suite.print_error(
                     f"Copy directory does not exist: {self.copy_dir}"
                 )
             else:
@@ -358,16 +379,16 @@ class FileExistsTest(RepoTest):
                             if self.force_copy:
                                 os.remove(new_file_path)
                             else:
-                                repo_test_suite.print_error(
+                                self.repo_test_suite.print_error(
                                     f"File already exists in copy directory: {new_file_path}"
                                 )
                                 continue
                         shutil.copy2(orig_filename, new_file_path)
-                        repo_test_suite.print(
+                        self.repo_test_suite.print(
                             f"Copied {orig_filename} to {new_file_path}"
                         )
                     except Exception as e:
-                        repo_test_suite.print_error(
+                        self.repo_test_suite.print_error(
                             f"Error copying file {orig_filename} to {new_file_path}: {e}"
                         )
         if return_val:
@@ -380,6 +401,7 @@ class FileRegexCheck(RepoTest):
 
     def __init__(
         self,
+        repo_test_suite,
         filename,
         regex_str,
         module_name=None,
@@ -393,7 +415,7 @@ class FileRegexCheck(RepoTest):
             otherwise an error is thrown if the regex does not match
         module_name: name to print for module (to override default)
         """
-        super().__init__(abort_on_error)
+        super().__init__(repo_test_suite, abort_on_error=abort_on_error)
         self.filename = filename
         self.regex_str = regex_str
         self.error_on_match = error_on_match
@@ -405,10 +427,10 @@ class FileRegexCheck(RepoTest):
             return self.module_name_str
         return f"File Regex Check: {self.filename} - {self.regex_str} - Error on match: {self.error_on_match}"
 
-    def perform_test(self, repo_test_suite):
-        file_path = repo_test_suite.working_path / self.filename
+    def perform_test(self):
+        file_path = self.repo_test_suite.working_path / self.filename
         if not os.path.exists(file_path):
-            repo_test_suite.print_error(f"File does not exist: {file_path}")
+            self.repo_test_suite.print_error(f"File does not exist: {file_path}")
             return self.error_result()
         # Check to see if there is a match
         regex_match = False
@@ -423,7 +445,7 @@ class FileRegexCheck(RepoTest):
         ):
             return self.success_result()
         if self.error_msg is not None:
-            repo_test_suite.print_error(self.error_msg)
+            self.repo_test_suite.print_error(self.error_msg)
         return self.error_result()
 
 
@@ -443,10 +465,12 @@ class FileNotTrackedTest(RepoTest):
             name_str += f"{repo_file}, "
         return name_str[:-2]  # Remove the last two characters (', ')
 
-    def perform_test(self, repo_test_suite):
+    def perform_test(self):
         return_val = True
-        test_dir = repo_test_suite.working_path
-        tracked_dir_files = repo_test_suite.repo.git.ls_files(test_dir).splitlines()
+        test_dir = self.repo_test_suite.working_path
+        tracked_dir_files = self.repo_test_suite.repo.git.ls_files(
+            test_dir
+        ).splitlines()
         # Get the filenames from the full path
         tracked_dir_filenames = [pathlib.Path(file).name for file in tracked_dir_files]
         # print(tracked_dir_filenames)
@@ -455,7 +479,7 @@ class FileNotTrackedTest(RepoTest):
             # print("checking",not_tracked_file)
             # Check to make sure this file is not tracked
             if not_tracked_file in tracked_dir_filenames:
-                repo_test_suite.print_error(
+                self.repo_test_suite.print_error(
                     f"File should NOT be tracked in the repository: {not_tracked_file}"
                 )
                 # print(repo_test_suite.repo.untracked_files)
@@ -471,8 +495,8 @@ class FileTrackedTest(RepoTest):
     build and not meant for tracking in the repository.
     """
 
-    def __init__(self, files_tracked_list):
-        super().__init__()
+    def __init__(self, repo_test_suite, files_tracked_list):
+        super().__init__(repo_test_suite)
         self.files_tracked_list = files_tracked_list
 
     def module_name(self):
@@ -481,10 +505,12 @@ class FileTrackedTest(RepoTest):
             name_str += f"{repo_file}, "
         return name_str[:-2]  # Remove the last two characters (', ')
 
-    def perform_test(self, repo_test_suite):
+    def perform_test(self):
         return_val = True
-        test_dir = repo_test_suite.working_path
-        tracked_dir_files = repo_test_suite.repo.git.ls_files(test_dir).splitlines()
+        test_dir = self.repo_test_suite.working_path
+        tracked_dir_files = self.repo_test_suite.repo.git.ls_files(
+            test_dir
+        ).splitlines()
         # Get the filenames from the full path
         tracked_dir_filenames = [pathlib.Path(file).name for file in tracked_dir_files]
         # print(tracked_dir_filenames)
@@ -493,7 +519,7 @@ class FileTrackedTest(RepoTest):
             # print("checking",not_tracked_file)
             # Check to make sure this file is not tracked
             if tracked_file not in tracked_dir_filenames:
-                repo_test_suite.print_error(
+                self.repo_test_suite.print_error(
                     f"File should be tracked in the repository: {tracked_file}"
                 )
                 # print(repo_test_suite.repo.untracked_files)
@@ -508,6 +534,7 @@ class MakeTest(RepoTest):
 
     def __init__(
         self,
+        repo_test_suite,
         make_rule,
         required_input_files=None,
         required_build_files=None,
@@ -531,6 +558,7 @@ class MakeTest(RepoTest):
             # default makefile output filename
             make_output_filename = "make_" + make_rule.replace(" ", "_") + ".log"
         super().__init__(
+            repo_test_suite,
             abort_on_error=abort_on_error,
             process_output_filename=make_output_filename,
             timeout_seconds=timeout_seconds,
@@ -557,22 +585,26 @@ class MakeTest(RepoTest):
             name_str += "]"
         return name_str
 
-    def perform_test(self, repo_test_suite):
+    def perform_test(self):
         # Check to see if the required input files exist
         if self.required_input_files is not None and len(self.required_input_files) > 0:
             for file in self.required_input_files:
                 if not os.path.exists(file):
-                    repo_test_suite.print_error(
+                    self.repo_test_suite.print_error(
                         f" Required file for Makefile rule '{self.make_rule}' does not exist: {file}"
                     )
                     return self.error_result()
+
         # Run the rule
         cmd = ["make", self.make_rule]
-        make_return_val = self.execute_command(repo_test_suite, cmd)
+        # Get a temporary file for the make output using tempfile module
+        make_return_val = self.execute_command(cmd)
+
         # Check to see if the make rule was successful
         if make_return_val != 0:
             return self.error_result()
         result = self.success_result()
+
         # Check to see if the required build files exist.
         missing_build_files = []
         if self.required_build_files is not None and len(self.required_build_files) > 0:
@@ -585,12 +617,14 @@ class MakeTest(RepoTest):
             missing_files_str = ""
             for file in missing_build_files:
                 missing_files_str += f"{file} "
-            repo_test_suite.print_error(f"Missing build files: {missing_build_files}")
+            self.repo_test_suite.print_error(
+                f"Missing build files: {missing_build_files}"
+            )
             result = self.warning_result()
         elif self.copy_build_files_dir is not None:  # all the files exist
             #  If the build files are to be copied, copy them to the copy directory
             for build_file in self.required_build_files:
-                self.copy_build_file(repo_test_suite, build_file)
+                self.copy_build_file(self.repo_test_suite, build_file)
         return result
 
     def copy_build_file(self, repo_test_suite, build_file):
@@ -624,11 +658,11 @@ class ExecsExistTest(RepoTest):
             name_str += f"{executable}, "
         return name_str[:-2]  # Remove the last two characters (', ')
 
-    def perform_test(self, repo_test_suite):
+    def perform_test(self):
         return_val = True
         for executable in self.executables:
             cmd = ["which", self.self.executable]
-            which_val = self.execute_command(repo_test_suite, cmd)
+            which_val = self.execute_command(cmd)
             if which_val != 0:
                 return_val = False
         if not return_val:
@@ -644,28 +678,26 @@ class ExecsExistTest(RepoTest):
 class CheckForUntrackedFiles(RepoTest):
     """This tests the repo for any untracked files in the repository."""
 
-    def __init__(self, ignore_ok=True):
+    def __init__(self, repo_test_suite, ignore_ok=True):
         """ """
-        super().__init__()
+        super().__init__(repo_test_suite)
         self.ignore_ok = ignore_ok
 
     def module_name(self):
         return "Check for untracked GIT files"
 
-    def perform_test(self, repo_test_suite):
+    def perform_test(self):
         # TODO: look into using repo.untracked_files instead of git command
 
-        untracked_files = repo_test_suite.repo.git.ls_files(
+        untracked_files = self.repo_test_suite.repo.git.ls_files(
             "--others", "--exclude-standard"
         )
         if untracked_files:
-            repo_test_suite.print_error("Untracked files found in repository:")
+            self.repo_test_suite.print_error("Untracked files found in repository:")
             files = untracked_files.splitlines()
-            for file in files:
-                repo_test_suite.print_error(f"  {file}")
-            # return False
+            self.print_files(files, ResultType.WARNING)
             return self.warning_result()
-        repo_test_suite.print("No untracked files found in repository")
+        self.repo_test_suite.print("No untracked files found in repository")
         # return True
         return self.success_result()
 
@@ -681,41 +713,41 @@ class CheckForTag(RepoTest):
     def module_name(self):
         return f"Check for tag '{self.tag_name}'"
 
-    def perform_test(self, repo_test_suite):
-        if self.tag_name in repo_test_suite.repo.tags:
-            commit = repo_test_suite.repo.tags[self.tag_name].commit
+    def perform_test(self):
+        if self.tag_name in self.repo_test_suite.repo.tags:
+            commit = self.repo_test_suite.repo.tags[self.tag_name].commit
             commit_date = datetime.datetime.fromtimestamp(
                 commit.committed_date
             ).strftime("%Y-%m-%d %H:%M:%S")
-            repo_test_suite.print(
+            self.repo_test_suite.print(
                 f"Tag '{self.tag_name}' found in repository (commit date: {commit_date})"
             )
             return self.success_result()
-        repo_test_suite.print_error(f"Tag {self.tag_name} not found in repository")
+        self.repo_test_suite.print_error(f"Tag {self.tag_name} not found in repository")
         return self.warning_result()
 
 
 class CheckForMaxRepoFiles(RepoTest):
     """Check to see if the repository has more than a given number of files."""
 
-    def __init__(self, max_dir_files):
+    def __init__(self, repo_test_suite, max_dir_files):
         """ """
-        super().__init__()
+        super().__init__(repo_test_suite)
         self.max_dir_files = max_dir_files
 
     def module_name(self):
         return "Check for max tracked repo files"
 
-    def perform_test(self, repo_test_suite):
-        tracked_files = repo_test_suite.repo.git.ls_files(
-            repo_test_suite.relative_repo_path
+    def perform_test(self):
+        tracked_files = self.repo_test_suite.repo.git.ls_files(
+            self.repo_test_suite.relative_repo_path
         ).split("\n")
         n_tracked_files = len(tracked_files)
-        repo_test_suite.print(
-            f"{n_tracked_files} Tracked git files in {repo_test_suite.relative_repo_path}"
+        self.repo_test_suite.print(
+            f"{n_tracked_files} Tracked git files in {self.repo_test_suite.relative_repo_path}"
         )
         if n_tracked_files > self.max_dir_files:
-            repo_test_suite.print_error(f"  Too many tracked files")
+            self.repo_test_suite.print_error(f"  Too many tracked files")
             return self.warning_result()
         return self.success_result()
 
@@ -726,36 +758,28 @@ class CheckForIgnoredFiles(RepoTest):
     operation. Returns true if there are no ignored files in the directory.
     """
 
-    MAX_NUM_PRINTED_IGNORED_FILES = 10
-
-    def __init__(self, check_path=None):
+    def __init__(self, repo_test_suite, check_path=None):
         """ """
-        super().__init__()
+        super().__init__(repo_test_suite)
         self.check_path = check_path
 
     def module_name(self):
         return "Check for ignored GIT files"
 
-    def perform_test(self, repo_test_suite):
+    def perform_test(self):
         if self.check_path is None:
-            self.check_path = repo_test_suite.working_path
+            self.check_path = self.repo_test_suite.working_path
         # TODO: look into using repo.untracked_files instead of git command
-        repo_test_suite.print(f"Checking for ignored files at {self.check_path}")
-        ignored_files = repo_test_suite.repo.git.ls_files(
+        self.repo_test_suite.print(f"Checking for ignored files at {self.check_path}")
+        ignored_files = self.repo_test_suite.repo.git.ls_files(
             self.check_path, "--others", "--ignored", "--exclude-standard"
         )
         if ignored_files:
-            repo_test_suite.print_error("Ignored files found in repository:")
+            self.repo_test_suite.print_warning("Ignored files found in repository:")
             files = ignored_files.splitlines()
-            for file in files[: self.MAX_NUM_PRINTED_IGNORED_FILES]:
-                repo_test_suite.print_error(f"  {file}")
-            if len(files) > self.MAX_NUM_PRINTED_IGNORED_FILES:
-                repo_test_suite.print_error(
-                    f"  ... and {len(files) - self.MAX_NUM_PRINTED_IGNORED_FILES} more ignored files."
-                )
-            # return False
+            self.print_files(files, ResultType.WARNING)
             return self.warning_result()
-        repo_test_suite.print("No ignored files found in repository")
+        self.repo_test_suite.print("No ignored files found in repository")
         # return True
         return self.success_result()
 
@@ -763,30 +787,28 @@ class CheckForIgnoredFiles(RepoTest):
 class CheckForUncommittedFiles(RepoTest):
     """Checks for uncommitted files in the repo directory."""
 
-    def __init__(self):
+    def __init__(self, repo_test_suite):
         """ """
-        super().__init__()
+        super().__init__(repo_test_suite)
 
     def module_name(self):
         return "Check for uncommitted git files"
 
-    def find_uncommitted_tracked_files(repo, dir=None):
+    def find_uncommitted_tracked_files(self, dir=None):
         """Static function that finds uncommitted files in the repo."""
-        uncommitted_changes = repo.index.diff(None)
+        uncommitted_changes = self.repo_test_suite.repo.index.diff(None)
         modified_files = [
             item.a_path for item in uncommitted_changes if item.change_type == "M"
         ]
         return modified_files
 
-    def perform_test(self, repo_test_suite):
-        modified_files = get_uncommitted_tracked_files(repo_test_suite.repo)
+    def perform_test(self):
+        modified_files = self.find_uncommitted_tracked_files()
         if modified_files:
-            repo_test_suite.print_error("Uncommitted files found in repository:")
-            for file in modified_files:
-                repo_test_suite.print_error(f"  {file}")
-            # return False
+            self.repo_test_suite.print_warning("Uncommitted files found in repository:")
+            self.print_files(modified_files, ResultType.WARNING)
             return self.warning_result()
-        repo_test_suite.print("No uncommitted files found in repository")
+        self.repo_test_suite.print("No uncommitted files found in repository")
         # return True
         return self.success_result()
 
@@ -802,16 +824,16 @@ class CheckNumberOfFiles(RepoTest):
     def module_name(self):
         return "Count files in repo dir"
 
-    def perform_test(self, repo_test_suite):
-        uncommitted_files = repo_test_suite.repo.git.status("--suno")
+    def perform_test(self):
+        uncommitted_files = self.repo_test_suite.repo.git.status("--suno")
         if uncommitted_files:
-            repo_test_suite.print_error("Uncommitted files found in repository:")
+            self.repo_test_suite.print_error("Uncommitted files found in repository:")
             files = uncommitted_files.splitlines()
             for file in files:
-                repo_test_suite.print_error(f"  {file}")
+                self.repo_test_suite.print_error(f"  {file}")
             # return False
             return self.warning_result()
-        repo_test_suite.print("No uncommitted files found in repository")
+        self.repo_test_suite.print("No uncommitted files found in repository")
         # return True
         return self.success_result()
 
@@ -827,12 +849,12 @@ class ListGitCommits(RepoTest):
     def module_name(self):
         return "List Git Commits"
 
-    def perform_test(self, repo_test_suite):
+    def perform_test(self):
         if self.check_path is None:
-            self.check_path = repo_test_suite.working_path
-        relative_path = self.check_path.relative_to(repo_test_suite.repo_root_path)
-        repo_test_suite.print(f"Checking for commits at {relative_path}")
-        commits = list(repo_test_suite.repo.iter_commits(paths=relative_path))
+            self.check_path = self.repo_test_suite.working_path
+        relative_path = self.check_path.relative_to(self.repo_test_suite.repo_root_path)
+        self.repo_test_suite.print(f"Checking for commits at {relative_path}")
+        commits = list(self.repo_test_suite.repo.iter_commits(paths=relative_path))
         for commit in commits:
             commit_hash = commit.hexsha[:7]
             commit_message = commit.message.strip()
@@ -845,35 +867,35 @@ class ListGitCommits(RepoTest):
 class CheckRemoteOrigin(RepoTest):
     """Checks to see if the remote origin matches the local."""
 
-    def __init__(self):
+    def __init__(self, repo_test_suite):
         """ """
-        super().__init__()
+        super().__init__(repo_test_suite)
 
     def module_name(self):
         return "Compare local repository to remote"
 
-    def perform_test(self, repo_test_suite):
+    def perform_test(self):
         try:
             # 1. Check for unpushed commits
-            unpushed_commits = get_unpushed_commits(repo_test_suite.repo)
+            unpushed_commits = get_unpushed_commits(self.repo_test_suite.repo)
             if unpushed_commits:
-                repo_test_suite.print_error("Local branch has unpushed commits:")
+                self.repo_test_suite.print_error("Local branch has unpushed commits:")
                 for commit in unpushed_commits:
-                    repo_test_suite.print_error(
+                    self.repo_test_suite.print_error(
                         f"  - {commit.hexsha[:7]}: {commit.message.strip()}"
                     )
                 return self.warning_result()
             # 2. Check for unpulled commits
-            unpulled_commits = get_unpulled_commits(repo_test_suite.repo)
+            unpulled_commits = get_unpulled_commits(self.repo_test_suite.repo)
             if unpulled_commits:
-                repo_test_suite.print_error("Local branch has unpulled commits:")
+                self.repo_test_suite.print_error("Local branch has unpulled commits:")
                 for commit in unpulled_commits:
-                    repo_test_suite.print_error(
+                    self.repo_test_suite.print_error(
                         f"  - {commit.hexsha[:7]}: {commit.message.strip()}"
                     )
                 return self.warning_result()
         except Exception as e:
-            repo_test_suite.print_error(f"Error checking remote origin: {e}")
+            self.repo_test_suite.print_error(f"Error checking remote origin: {e}")
             return self.error_result()
         return self.success_result()
 
@@ -885,7 +907,11 @@ class CheckRemoteStarter(RepoTest):
     """
 
     def __init__(
-        self, remote_name, remote_branch=None, last_date_of_remote_commit=None
+        self,
+        repo_test_suite,
+        remote_name,
+        remote_branch=None,
+        last_date_of_remote_commit=None,
     ):
         """
         remote_name: the name of the remote repository to check
@@ -893,7 +919,7 @@ class CheckRemoteStarter(RepoTest):
         last_date_of_remote_commit: the date of the last commit to check for updates (if None, defaults to currenttime)
           This parameter will only check to see if there are commits on the remote before or at this time.
         """
-        super().__init__()
+        super().__init__(repo_test_suite)
         self.remote_name = remote_name
         self.remote_branch = remote_branch
         if self.remote_branch is None:
@@ -908,23 +934,23 @@ class CheckRemoteStarter(RepoTest):
         )
         return module_str
 
-    def perform_test(self, repo_test_suite):
+    def perform_test(self):
         try:
             # 1. Check for unpulled commits from starter
             unpulled_commits = get_unpulled_commits(
-                repo_test_suite.repo,
+                self.repo_test_suite.repo,
                 self.remote_name,
                 self.remote_branch,
                 self.last_date_of_remote_commit,
             )
             if unpulled_commits:
-                repo_test_suite.print_error("Remote Branch has unpulled commits:")
+                self.repo_test_suite.print_error("Remote Branch has unpulled commits:")
                 for commit in unpulled_commits:
-                    repo_test_suite.print_error(
+                    self.repo_test_suite.print_error(
                         f"  - {commit.hexsha[:7]}: {commit.message.strip()}"
                     )
                 return self.warning_result()
         except Exception as e:
-            repo_test_suite.print_error(f"Error: {e}")
+            self.repo_test_suite.print_error(f"Error: {e}")
             return self.error_result()
         return self.success_result()
