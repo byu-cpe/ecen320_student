@@ -879,18 +879,18 @@ class CheckRemoteOrigin(RepoTest):
             # 1. Check for unpushed commits
             unpushed_commits = get_unpushed_commits(self.repo_test_suite.repo)
             if unpushed_commits:
-                self.repo_test_suite.print_error("Local branch has unpushed commits:")
+                self.repo_test_suite.print_warning("Local branch has unpushed commits:")
                 for commit in unpushed_commits:
-                    self.repo_test_suite.print_error(
+                    self.repo_test_suite.print_warning(
                         f"  - {commit.hexsha[:7]}: {commit.message.strip()}"
                     )
                 return self.warning_result()
             # 2. Check for unpulled commits
             unpulled_commits = get_unpulled_commits(self.repo_test_suite.repo)
             if unpulled_commits:
-                self.repo_test_suite.print_error("Local branch has unpulled commits:")
+                self.repo_test_suite.print_warning("Local branch has unpulled commits:")
                 for commit in unpulled_commits:
-                    self.repo_test_suite.print_error(
+                    self.repo_test_suite.print_warning(
                         f"  - {commit.hexsha[:7]}: {commit.message.strip()}"
                     )
                 return self.warning_result()
