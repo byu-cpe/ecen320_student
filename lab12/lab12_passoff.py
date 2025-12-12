@@ -22,39 +22,42 @@ def main():
     )
     tester.add_required_tracked_files(
         [
-            "charGen.sv",
-            "sim_charGen.tcl",
-            "sim_charGen.png",
-            "chargen_top.sv",
-            "sim_chargen_top.tcl",
-            "sim_chargen_top.png",
+            "char_gen.sv",
+            "sim_char_gen.tcl",
+            "sim_char_gen.png",
+            "char_gen_top.sv",
+            "sim_char_gen_top.tcl",
+            "sim_char_gen_top.png",
             "mymessage.txt",
             "fontrom.png",
         ]
     )
-    tester.add_Makefile_rule("sim_chargen_tb", ["charGen.sv"], ["sim_chargen_tb.log"])
+    tester.add_Makefile_rule(
+        "sim_char_gen_tb", ["char_gen.sv"], ["sim_char_gen_tb.log"]
+    )
     tester.add_build_test(
-        repo_test.file_regex_check(
-            "sim_chargen_tb.log",
+        repo_test.FileRegexCheck(
+            tester,
+            "sim_char_gen_tb.log",
             "Simulation done with 0 errors",
-            "CharGen Testbench Test",
+            "Char Gen Testbench Test",
             error_on_match=False,
-            error_msg="CharGen Testbench failed",
+            error_msg="Char Gen Testbench failed",
         )
     )
     tester.add_Makefile_rule("mymessage.mem", ["mymessage.txt"], ["mymessage.mem"])
     tester.add_Makefile_rule(
         "synth",
-        ["charGen.sv", "chargen_top.sv"],
-        ["synthesis.log", "chargen_top_synth.dcp"],
+        ["char_gen.sv", "char_gen_top.sv"],
+        ["synthesis.log", "char_gen_top_synth.dcp"],
     )
     tester.add_Makefile_rule(
         "implement",
-        ["chargen_top_synth.dcp"],
+        ["char_gen_top_synth.dcp"],
         [
             "implement.log",
-            "chargen_top.bit",
-            "chargen_top.dcp",
+            "char_gen_top.bit",
+            "char_gen_top.dcp",
             "utilization.rpt",
             "timing.rpt",
         ],

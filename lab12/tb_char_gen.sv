@@ -1,6 +1,6 @@
 // Testbench for charGen
 
-module tb_charGen #(parameter FILENAME="", parameter VERBOSE = 0)();
+module tb_char_gen #(parameter FILENAME="", parameter VERBOSE = 0)();
    logic clk, char_we;
    logic [6:0] char_value;
    logic [11:0] char_addr;
@@ -90,7 +90,7 @@ module tb_charGen #(parameter FILENAME="", parameter VERBOSE = 0)();
    end
 
    // Instance design under test
-   charGen #(.FILENAME(FILENAME))
+   char_gen #(.FILENAME(FILENAME))
    DUT (
         .clk(clk),
         .char_we(char_we),
