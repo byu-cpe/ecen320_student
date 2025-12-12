@@ -11,6 +11,7 @@ sys.dont_write_bytecode = (
 resources_path = pathlib.Path(__file__).resolve().parent.parent / "resources"
 sys.path.append(str(resources_path))
 
+from repo_test_suite import RepoTestSuite
 import test_suite_320
 import repo_test
 
@@ -31,7 +32,8 @@ def main():
         "sim_vga_timing", ["vga_timing.sv"], ["sim_vga_timing.log"]
     )
     tester.add_build_test(
-        repo_test.file_regex_check(
+        repo_test.FileRegexCheck(
+            tester,
             "sim_vga_timing.log",
             "COMPLETED SUCCESSFULLY with 0 errors",
             "VGA Timing Test",
@@ -54,6 +56,8 @@ def main():
         ],
     )
     tester.run_tests()
+    status = tester.run_tests()
+    RepoTestSuite.exit_with_status(status)
 
 
 if __name__ == "__main__":

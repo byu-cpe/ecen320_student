@@ -2,6 +2,7 @@
 
 import os
 import pathlib
+import sys
 
 import git
 from mytypes import ResultType
@@ -173,17 +174,18 @@ class RepoTestSuite:
                 warnings.append(result)
             else:
                 errors.append(result)
-        if len(warnings) == 0 and len(errors) == 0:
+        if not warnings and not errors:
             self.print_test_success("  No errors or warnings")
-        else:
-            if len(warnings) != 0:
-                self.print_warning(f" {len(warnings)} Warnings")
-                for warning in warnings:
-                    self.print_warning(f"  {warning.test.module_name()}")
-            if len(errors) != 0:
-                self.print_error(f" {len(errors)} Errors")
-                for error in errors:
-                    self.print_error(f"  {error.test.module_name()}")
+
+        if warnings:
+            self.print_warning(f" {len(warnings)} Warnings")
+            for warning in warnings:
+                self.print_warning(f"  {warning.test.module_name()}")
+
+        if errors:
+            self.print_error(f" {len(errors)} Errors")
+            for error in errors:
+                self.print_error(f"  {error.test.module_name()}")
 
     def iterate_through_tests(self, list_of_tests, start_step=1):
         """Run list of tests. Return True if all tests pass, False otherwise"""
@@ -212,6 +214,16 @@ class RepoTestSuite:
         else:
             self.print_error(f"Failed: {module_name}\n")
         return result
+
+    @classmethod
+    def exit_with_status(cls, status: ResultType):
+        """Exit the program with a status code based on the test result"""
+        if status == ResultType.WARNING:
+            sys.exit(1)
+        elif status == ResultType.ERROR:
+            sys.exit(2)
+        else:
+            sys.exit(0)
 
 
 # Static methods

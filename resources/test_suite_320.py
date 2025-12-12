@@ -2,14 +2,12 @@
 
 import argparse
 import os
-import git
 import time
-
-import repo_test
-from repo_test_suite import RepoTestSuite
 from datetime import datetime
 
-import repo_test_suite
+import git
+import repo_test
+from repo_test_suite import RepoTestSuite
 
 # ToDo:
 # - Lab check script:
@@ -228,7 +226,7 @@ class TestSuite320(RepoTestSuite):
             if not check_commit_date_status:
                 return
         else:  # Not performing a submit. Provide messages related to the status of the submit
-            self.print_test_summary()
+            status = self.print_test_summary()
             self.print_test_message(f"\nSubmission status for '{self.test_name}'")
             # See if there is a lab tag already submitted
             lab_tag_commit = self.get_lab_tag_commit(self.test_name)
@@ -243,7 +241,7 @@ class TestSuite320(RepoTestSuite):
                     # (don't check other directories as they may change)
             else:  # there is not a current submission
                 self.print_error("  No submission exists")
-        return
+        return final_result
 
     def get_lab_tag_commit(self, lab_name, fetch_remote_tags=True):
         """Get the tag associated with a lab assignment. If the tag doesn't exist, return None."""
