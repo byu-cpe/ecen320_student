@@ -241,6 +241,7 @@ class RepoTest:
             fp.write(message + "\n")
 
             # Execute command
+            assert self.dir_path.is_dir(), f"Directory does not exist: {self.dir_path}"
             start_time = time.time()
             proc = subprocess.Popen(
                 proc_cmd,
@@ -363,7 +364,9 @@ class FileExistsTest(RepoTest):
         for repo_file in self.repo_file_list:
             file_path = self.repo_test_suite.working_path / repo_file
             if not os.path.exists(file_path):
-                self.repo_test_suite.print_error(f"File does not exist: {file_path}")
+                self.repo_test_suite.print_error(
+                    f"File does not exist: {file_path.relative_to(self.repo_test_suite.repo_root_path)}"
+                )
                 success = False
             else:
                 self.repo_test_suite.print(

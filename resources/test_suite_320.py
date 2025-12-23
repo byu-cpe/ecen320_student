@@ -158,16 +158,16 @@ class TestSuite320(RepoTestSuite):
         """
         # Add test to see if the file was generated (in the current working directory)
         check_file_test = repo_test.FileExistsTest(self, file_list)
-        self.add_post_build_test(check_file_test)
+        self.add_pre_build_test(check_file_test)
 
         # Add test to make sure the file is not committed in the repository
         if check_files_not_tracked:
             non_committed_files_test = repo_test.FileNotTrackedTest(self, file_list)
-            self.add_post_build_test(non_committed_files_test)
+            self.add_pre_build_test(non_committed_files_test)
 
         if check_tracked_files:
             committed_files_test = repo_test.FileTrackedTest(self, file_list)
-            self.add_post_build_test(committed_files_test)
+            self.add_pre_build_test(committed_files_test)
 
     def add_required_tracked_files(self, file_list):
         self.add_required_files(
