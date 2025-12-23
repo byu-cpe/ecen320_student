@@ -18,7 +18,7 @@ sim_tb: work
 	@if [ -z "$(SV_FILES)" ]; then echo "Error: SV_FILES not set"; exit 1; fi
 	cd work
 	xvlog ../tb.sv $(addprefix ../,$(SV_FILES)) -sv --nolog
-	xelab tb -debug typical --nolog $(foreach PARAM,$(SIM_PARAMS),--generic_top '$(PARAM)')
+	xelab tb -debug typical --nolog -L unisims_ver --timescale 1ns/1ps $(foreach PARAM,$(SIM_PARAMS),--generic_top '$(PARAM)')
 	xsim tb -log sim_tb.log --runall
 
 pre_synth_schematic: work
