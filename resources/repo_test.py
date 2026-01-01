@@ -705,7 +705,7 @@ class CheckForUntrackedFiles(RepoTest):
         self.ignore_ok = ignore_ok
 
     def module_name(self):
-        return "Check for untracked GIT files"
+        return "Check for untracked git files"
 
     def perform_test(self):
         # TODO: look into using repo.untracked_files instead of git command
