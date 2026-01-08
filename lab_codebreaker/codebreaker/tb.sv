@@ -1,6 +1,6 @@
 // Testbench for codebreaker
 
-module tb_codebreaker #(
+module tb #(
     parameter logic [127:0] CYPHERTEXT=128'hca7d05cd7e096d91acaf6fd347ef4994,
     parameter logic [23:0] EXPECTED_KEY = 24'h0005,
     parameter logic [127:0] EXPECTED_PLAINTEXT=128'h52205520484156494e472046554e2020) ();
