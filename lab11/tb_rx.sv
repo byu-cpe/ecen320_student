@@ -76,7 +76,7 @@ module tb_rx #(parameter CLK_FREQUENCY=100_000_000, parameter BAUD_RATE = 19_200
       @(posedge Receive);
       sdla();
 
-      if (mdout != Dout)
+      if (mdout !== Dout)
         incErr($sformatf("*** ERROR: expecting to have received byte 0x%0x but received 0x%0x instead", mdout, Dout));
       else
         pmsg($sformatf("   Serially received data byte 0x%0x", Dout));
