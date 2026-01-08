@@ -217,16 +217,6 @@ class RepoTestSuite:
             self.print_error(f"Failed: {module_name}\n")
         return result
 
-    @classmethod
-    def exit_with_status(cls, status: ResultType):
-        """Exit the program with a status code based on the test result"""
-        if status == ResultType.WARNING:
-            sys.exit(1)
-        elif status == ResultType.ERROR:
-            sys.exit(2)
-        else:
-            sys.exit(0)
-
 
 # Static methods
 def create_from_path(path=None):

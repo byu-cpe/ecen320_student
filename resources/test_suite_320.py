@@ -3,10 +3,12 @@
 import argparse
 import os
 import pathlib
+import sys
 import time
 from datetime import datetime
 
 import git
+from mytypes import ResultType
 import repo_test
 from repo_test_suite import RepoTestSuite
 
@@ -158,16 +160,16 @@ class TestSuite320(RepoTestSuite):
         """
         # Add test to see if the file was generated (in the current working directory)
         check_file_test = repo_test.FileExistsTest(self, file_list)
-        self.add_post_build_test(check_file_test)
+        self.add_pre_build_test(check_file_test)
 
         # Add test to make sure the file is not committed in the repository
         if check_files_not_tracked:
             non_committed_files_test = repo_test.FileNotTrackedTest(self, file_list)
-            self.add_post_build_test(non_committed_files_test)
+            self.add_pre_build_test(non_committed_files_test)
 
         if check_tracked_files:
             committed_files_test = repo_test.FileTrackedTest(self, file_list)
-            self.add_post_build_test(committed_files_test)
+            self.add_pre_build_test(committed_files_test)
 
     def add_required_tracked_files(self, file_list):
         self.add_required_files(
@@ -252,7 +254,7 @@ class TestSuite320(RepoTestSuite):
                     # (don't check other directories as they may change)
             else:  # there is not a current submission
                 self.print_error("  No submission exists")
-        return final_result
+        self.final_result = final_result
 
     def get_lab_tag_commit(self, lab_name, fetch_remote_tags=True):
         """Get the tag associated with a lab assignment. If the tag doesn't exist, return None."""
@@ -364,6 +366,15 @@ class TestSuite320(RepoTestSuite):
                 f"Github Submission commit file '{file_path}' not yet created - waiting"
             )
         return False
+
+    def exit_with_status(self):
+        """Exit the program with a status code based on the test result"""
+        if self.final_result == ResultType.WARNING and not self.perform_submit:
+            sys.exit(1)
+        elif self.final_result == ResultType.ERROR:
+            sys.exit(2)
+        else:
+            sys.exit(0)
 
 
 def build_test_suite_320(assignment_path, max_repo_files=20, start_date=None):
