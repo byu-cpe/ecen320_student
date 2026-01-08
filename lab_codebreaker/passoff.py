@@ -20,6 +20,7 @@ required_files = [
     "decrypt_rc4/sim.tcl",
     "decrypt_rc4/sim.png",
     "background.txt",
+    "codebreaker_top/background.txt",
     "codebreaker_top/sim.tcl",
     "codebreaker_top/sim.png",
     "codebreaker_top/sim2.png",
