@@ -4,7 +4,7 @@
 //
 //////////////////////////////////////////////////////////////////////////////////
 
-module tb_debounce #(
+module tb #(
     parameter CLK_FREQUENCY     = 100_000_000, 
     parameter WAIT_TIME_US      = 5000,
     parameter NUMBER_OF_PULSES  = 4

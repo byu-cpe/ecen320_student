@@ -1,6 +1,6 @@
 // Testbench for charGen
 
-module tb_char_gen #(parameter FILENAME="", parameter VERBOSE = 0)();
+module tb #(parameter FILENAME="", parameter VERBOSE = 0)();
    logic clk, char_we;
    logic [6:0] char_value;
    logic [11:0] char_addr;
