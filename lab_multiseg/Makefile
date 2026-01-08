@@ -1,4 +1,3 @@
-# Add your rules here
 clean:
 	cd seven_segment4; make clean
 	cd ssd_top; make clean
