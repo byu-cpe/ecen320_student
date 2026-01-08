@@ -8,7 +8,8 @@ sim: work
 	@if [ -z "$(SV_FILES)" ]; then echo "Error: SV_FILES not set"; exit 1; fi
 	cd work
 	xvlog $(addprefix ../,$(SV_FILES)) -sv --nolog
-	xelab $(MODULE_NAME) -debug typical --nolog -L unisims_ver --timescale 1ns/1ps $(foreach PARAM,$(SIM_PARAMS),--generic_top '$(PARAM)')
+	xvlog ../$(REPO_PATH)/resources/cells_sim.v --nolog
+	xelab $(MODULE_NAME) -debug typical --nolog --timescale 1ns/1ps $(foreach PARAM,$(SIM_PARAMS),--generic_top '$(PARAM)')
 	xsim $(MODULE_NAME) -tclbatch ../sim.tcl -log sim.log $(if $(filter 1,$(NOGUI)),,-gui)
 
 sim_nogui:
@@ -18,8 +19,12 @@ sim_tb: work
 	@if [ -z "$(SV_FILES)" ]; then echo "Error: SV_FILES not set"; exit 1; fi
 	cd work
 	xvlog ../tb.sv $(addprefix ../,$(SV_FILES)) -sv --nolog
-	xelab tb -debug typical --nolog $(foreach PARAM,$(SIM_PARAMS),--generic_top '$(PARAM)')
-	xsim tb -log sim_tb.log --runall
+	xvlog ../$(REPO_PATH)/resources/cells_sim.v --nolog
+	xelab tb -debug typical --nolog --timescale 1ns/1ps $(foreach PARAM,$(SIM_PARAMS),--generic_top '$(PARAM)')
+	xsim tb -log sim_tb.log $(if $(filter 1,$(GUI)),-gui, --runall)
+
+sim_tb_gui:
+	$(MAKE) GUI=1 sim_tb
 
 pre_synth_schematic: work
 	@if [ -z "$(MODULE_NAME)" ]; then echo "Error: MODULE_NAME not set"; exit 1; fi
