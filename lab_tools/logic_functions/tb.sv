@@ -4,15 +4,15 @@
 //
 //////////////////////////////////////////////////////////////////////////////////
 
-module tb_logic_functions();
+module tb();
 
     logic a,b,c;
-    logic o1,o2,o3,o4;
-    logic t_o1, t_o2, t_o3, t_o4;
+    logic o1,o2;
+    logic t_o1, t_o2;
     integer i,errors;
 
     // Instance the unit under test
-    logic_functions dut(.A(a), .B(b), .C(c), .O1(o1), .O2(o2), .O3(o3), .O4(o4));
+    logic_functions dut(.A(a), .B(b), .C(c), .O1(o1), .O2(o2));
 
     initial begin
 
@@ -34,22 +34,14 @@ module tb_logic_functions();
             b = (i & 3'b010) == 3'b010;
             c = (i & 3'b001) == 3'b001;
             #10
-            $display("A=%b B=%b C=%b: O1=%b O2=%b O3=%b O4=%b at time %t", 
-                a,b,c, o1, o2, o3, o4, $time);
+            $display("A=%b B=%b C=%b: O1=%b O2=%b at time %t", 
+                a,b,c, o1, o2, $time);
             if (o1 !==t_o1) begin
                 $display(" ERROR: O1=%b but expecting %b", o1, t_o1);
                 errors = errors + 1;
             end
             if (o2 !== t_o2) begin
                 $display(" ERROR: O2=%b but expecting %b", o2, t_o2);
-                errors = errors + 1;
-            end
-            if (o3 !== t_o3) begin
-                $display(" ERROR: O3=%b but expecting %b", o3, t_o3);
-                errors = errors + 1;
-            end
-            if (o4 !== t_o4) begin
-                $display(" ERROR: O4=%b but expecting %b", o4, t_o4);
                 errors = errors + 1;
             end
         end
@@ -62,7 +54,5 @@ module tb_logic_functions();
 
     assign t_o1 = a&c | ~a&b; // AC+A'B
     assign t_o2 = (a|~c) & (b&c); // (A + ~C)(BC)
-    assign t_o3 = (a & ~b) | c; // (AB') + C
-    assign t_o4 = ~( ~(a & b ) & ~(~c&~b) ); // [(AB)'(C'B')]'
 
 endmodule

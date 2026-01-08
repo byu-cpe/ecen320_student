@@ -2,10 +2,13 @@
 
 import argparse
 import os
+import pathlib
+import sys
 import time
 from datetime import datetime
 
 import git
+from mytypes import ResultType
 import repo_test
 from repo_test_suite import RepoTestSuite
 
@@ -37,7 +40,8 @@ class TestSuite320(RepoTestSuite):
     def __init__(
         self,
         repo,
-        assignment_name,
+        assignment_path,
+        *,
         max_repo_files=20,
         summary_log_filename=None,
         required_executables=None,
@@ -45,10 +49,15 @@ class TestSuite320(RepoTestSuite):
         starter_branch="main",
         starter_check_date=None,
     ):
+        assert isinstance(assignment_path, pathlib.Path)
         super().__init__(
-            repo, test_name=assignment_name, summary_log_filename=summary_log_filename
+            repo,
+            working_dir=assignment_path,
+            test_name=assignment_path.name,
+            summary_log_filename=summary_log_filename,
         )
         # Initialize the sets of tests
+        self.assignment_path = assignment_path
         self.repo_tests = []
         self.pre_build_tests = []
         self.build_tests = []
@@ -121,9 +130,10 @@ class TestSuite320(RepoTestSuite):
     def add_clean_test(self, test):
         self.clean_tests.append(test)
 
-    def add_Makefile_rule(
+    def add_makefile_rule(
         self,
         make_rule,
+        dir_path=".",
         required_input_files=[],
         required_build_files=[],
         timeout_seconds=10 * 60,
@@ -132,6 +142,7 @@ class TestSuite320(RepoTestSuite):
         make_test = repo_test.MakeTest(
             self,
             make_rule,
+            dir_path=dir_path,
             required_input_files=required_input_files,
             required_build_files=required_build_files,
             timeout_seconds=timeout_seconds,
@@ -148,21 +159,23 @@ class TestSuite320(RepoTestSuite):
         optionally check to make sure it is committed in the repo (for required files)
         """
         # Add test to see if the file was generated (in the current working directory)
-        # check_file_test = repo_test.file_exists_test(file_list, copy_dir = self.copy_file_dir, prepend_file_str = self.prepend_file_str)
-        check_file_test = repo_test.FileExistsTest(
-            self, file_list
-        )  # Commented out copying. No need to copy existing files, only need to copy built files
-        self.add_post_build_test(check_file_test)
+        check_file_test = repo_test.FileExistsTest(self, file_list)
+        self.add_pre_build_test(check_file_test)
+
         # Add test to make sure the file is not committed in the repository
         if check_files_not_tracked:
             non_committed_files_test = repo_test.FileNotTrackedTest(self, file_list)
-            self.add_post_build_test(non_committed_files_test)
+            self.add_pre_build_test(non_committed_files_test)
+
         if check_tracked_files:
             committed_files_test = repo_test.FileTrackedTest(self, file_list)
-            self.add_post_build_test(committed_files_test)
+            self.add_pre_build_test(committed_files_test)
 
     def add_required_tracked_files(self, file_list):
-        self.add_required_files(file_list, check_tracked_files=True)
+        self.add_required_files(
+            [self.assignment_path / file for file in file_list],
+            check_tracked_files=True,
+        )
 
     def run_tests(self):
         """Run all the registered tests in the test suite."""
@@ -241,7 +254,7 @@ class TestSuite320(RepoTestSuite):
                     # (don't check other directories as they may change)
             else:  # there is not a current submission
                 self.print_error("  No submission exists")
-        return final_result
+        self.final_result = final_result
 
     def get_lab_tag_commit(self, lab_name, fetch_remote_tags=True):
         """Get the tag associated with a lab assignment. If the tag doesn't exist, return None."""
@@ -354,16 +367,29 @@ class TestSuite320(RepoTestSuite):
             )
         return False
 
+    def exit_with_status(self):
+        """Exit the program with a status code based on the test result"""
+        if self.final_result == ResultType.WARNING and not self.perform_submit:
+            sys.exit(1)
+        elif self.final_result == ResultType.ERROR:
+            sys.exit(2)
+        else:
+            sys.exit(0)
 
-def build_test_suite_320(assignment_name, max_repo_files=20, start_date=None):
+
+def build_test_suite_320(assignment_path, max_repo_files=20, start_date=None):
     """A helper function used by 'main' functions to build a test suite based on command line arguments.
     assignment_name: the name of the assignment used for taggin (e.g. 'lab01')
     max_repo_files: the maximum number of files allowed in the lab directory of the repository
     start_date: the date when the lab officialy starts (used to prevent early submissions and to enforce startercode updating)
        This parameter is a string and is in the format "MM/DD/YYYY". If no parameter is given, None is used.
     """
+    assert isinstance(
+        assignment_path, pathlib.Path
+    ), "assignment_path must be a pathlib.Path object"
+
     parser = argparse.ArgumentParser(
-        description=f"Test suite for 320 Assignment: {assignment_name}"
+        description=f"Test suite for 320 Assignment: {assignment_path.name}"
     )
     parser.add_argument(
         "--submit",
@@ -417,7 +443,7 @@ def build_test_suite_320(assignment_name, max_repo_files=20, start_date=None):
     # Build test suite
     test_suite = TestSuite320(
         repo,
-        assignment_name,
+        assignment_path,
         max_repo_files=max_repo_files,
         summary_log_filename=summary_log_filename,
         submit=args.submit,

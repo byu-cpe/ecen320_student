@@ -1,6 +1,5 @@
 #!/usr/bin/python3
 
-import os
 import pathlib
 import sys
 
@@ -60,15 +59,16 @@ class RepoTestSuite:
         # Reference to the Git repository
         self.repo = repo
         self.repo_root_path = pathlib.Path(repo.git.rev_parse("--show-toplevel"))
-        # The path to the directory where the top-level script has been run
-        self.script_path = os.getcwd()
+
         # Directory where tests should be completed. This may be different from the script_path
         if working_dir is not None:
             self.working_path = pathlib.Path(working_dir)
         else:
-            self.working_path = pathlib.Path(self.script_path)
+            self.working_path = pathlib.Path(pathlib.Path.cwd())
+
         # Relative repo path
         self.relative_repo_path = self.working_path.relative_to(self.repo_root_path)
+
         # Directory of the logs
         self.log_dir = log_dir
         self.tests_to_perform = []  # list of test_module objects
@@ -87,11 +87,13 @@ class RepoTestSuite:
                     "Error opening file for writing:", summary_log_filepath
                 )
         self.test_name = test_name
+
         # Colors
         self.test_color = TermColor.BLUE
         self.success_color = TermColor.GREEN
         self.warning_color = TermColor.YELLOW
         self.error_color = TermColor.RED
+
         # Test result dictionary
         self.test_results = {}
 
@@ -215,22 +217,12 @@ class RepoTestSuite:
             self.print_error(f"Failed: {module_name}\n")
         return result
 
-    @classmethod
-    def exit_with_status(cls, status: ResultType):
-        """Exit the program with a status code based on the test result"""
-        if status == ResultType.WARNING:
-            sys.exit(1)
-        elif status == ResultType.ERROR:
-            sys.exit(2)
-        else:
-            sys.exit(0)
-
 
 # Static methods
 def create_from_path(path=None):
     """Create a repo_test_suite object from a path. If no path is given,
     the current directory is used."""
     if path is None:
-        path = os.getcwd()
+        path = pathlib.Path.cwd()
     repo = git.Repo(path, search_parent_directories=True)
     return RepoTestSuite(repo, path)
