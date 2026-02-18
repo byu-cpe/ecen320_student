@@ -113,11 +113,17 @@ def get_unpulled_commits(
 
 
 def get_uncommitted_tracked_files(repo):
-    """Get a list of uncommitted files in the local repository."""
-    uncommitted_changes = repo.index.diff(None)
-    modified_files = [
-        item.a_path for item in uncommitted_changes if item.change_type == "M"
-    ]
+    """Get a list of uncommitted files in the local repository (staged and unstaged)."""
+    # Unstaged changes (working directory vs index)
+    unstaged_changes = repo.index.diff(None)
+    # Staged changes (HEAD vs index)
+    staged_changes = repo.head.commit.diff()
+    modified_files = list(
+        set(
+            [item.a_path for item in unstaged_changes]
+            + [item.a_path for item in staged_changes]
+        )
+    )
     return modified_files
 
 
@@ -172,12 +178,14 @@ class RepoTest:
         abort_on_error=True,
         process_output_filename=None,
         timeout_seconds=0,
+        failure_severity=ResultType.ERROR,
     ):
         """Initialize the test module with a repo object"""
         assert isinstance(repo_test_suite, RepoTestSuite)
         self.repo_test_suite = repo_test_suite
         self.abort_on_error = abort_on_error
         self.process_output_filename = process_output_filename
+        self.failure_severity = failure_severity
         # List of files that should be deleted after the test is done (i.e., log files)
         self.files_to_delete = []
         self.timeout_seconds = timeout_seconds
@@ -192,6 +200,15 @@ class RepoTest:
         the self.repo_test_suite object to obtain test-specific information."""
         return False
 
+    def print_with_severity(self, msg):
+        """Prints a message with the appropriate severity level."""
+        if self.failure_severity == ResultType.SUCCESS:
+            self.repo_test_suite.print(msg)
+        elif self.failure_severity == ResultType.WARNING:
+            self.repo_test_suite.print_warning(msg)
+        elif self.failure_severity == ResultType.ERROR:
+            self.repo_test_suite.print_error(msg)
+
     def success_result(self, msg=None):
         return RepoTestResult(self, ResultType.SUCCESS, msg)
 
@@ -200,6 +217,9 @@ class RepoTest:
 
     def error_result(self, msg=None):
         return RepoTestResult(self, ResultType.ERROR, msg)
+
+    def failure_result(self, msg=None):
+        return RepoTestResult(self, self.failure_severity, msg)
 
     def read_stdout_to_queue_thread(proc, output_queue):
         while True:
@@ -302,7 +322,10 @@ class RepoTest:
             if os.path.exists(file):
                 os.remove(file)
 
-    def print_files(self, files, severity):
+    def print_files(self, files, severity=None):
+        if severity is None:
+            severity = self.failure_severity
+
         MAX_NUM_PRINTED_FILES = 10
         assert severity in (ResultType.WARNING, ResultType.ERROR)
         print_fcn = (
@@ -810,25 +833,31 @@ class CheckForUncommittedFiles(RepoTest):
 
     def __init__(self, repo_test_suite):
         """ """
-        super().__init__(repo_test_suite)
+        super().__init__(repo_test_suite, failure_severity=ResultType.ERROR)
 
     def module_name(self):
         return "Check for uncommitted git files"
 
     def find_uncommitted_tracked_files(self, dir=None):
-        """Static function that finds uncommitted files in the repo."""
-        uncommitted_changes = self.repo_test_suite.repo.index.diff(None)
-        modified_files = [
-            item.a_path for item in uncommitted_changes if item.change_type == "M"
-        ]
+        """Finds uncommitted files in the repo (staged and unstaged)."""
+        # Unstaged changes (working directory vs index)
+        unstaged_changes = self.repo_test_suite.repo.index.diff(None)
+        # Staged changes (HEAD vs index)
+        staged_changes = self.repo_test_suite.repo.head.commit.diff()
+        modified_files = list(
+            set(
+                [item.a_path for item in unstaged_changes]
+                + [item.a_path for item in staged_changes]
+            )
+        )
         return modified_files
 
     def perform_test(self):
         modified_files = self.find_uncommitted_tracked_files()
         if modified_files:
-            self.repo_test_suite.print_warning("Uncommitted files found in repository:")
-            self.print_files(modified_files, ResultType.WARNING)
-            return self.warning_result()
+            self.print_with_severity("Uncommitted files found in repository:")
+            self.print_files(modified_files)
+            return self.failure_result()
         self.repo_test_suite.print("No uncommitted files found in repository")
         # return True
         return self.success_result()
@@ -940,7 +969,7 @@ class CheckRemoteStarter(RepoTest):
         last_date_of_remote_commit: the date of the last commit to check for updates (if None, defaults to currenttime)
           This parameter will only check to see if there are commits on the remote before or at this time.
         """
-        super().__init__(repo_test_suite)
+        super().__init__(repo_test_suite, failure_severity=ResultType.ERROR)
         self.remote_name = remote_name
         self.remote_branch = remote_branch
         if self.remote_branch is None:
@@ -965,12 +994,12 @@ class CheckRemoteStarter(RepoTest):
                 self.last_date_of_remote_commit,
             )
             if unpulled_commits:
-                self.repo_test_suite.print_error("Remote Branch has unpulled commits:")
+                self.print_with_severity("Remote Branch has unpulled commits:")
                 for commit in unpulled_commits:
-                    self.repo_test_suite.print_error(
+                    self.print_with_severity(
                         f"  - {commit.hexsha[:7]}: {commit.message.strip()}"
                     )
-                return self.warning_result()
+                return self.failure_result()
         except Exception as e:
             self.repo_test_suite.print_error(f"Error: {e}")
             return self.error_result()
