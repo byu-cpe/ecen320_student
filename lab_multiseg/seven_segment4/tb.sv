@@ -9,8 +9,6 @@ module tb #(parameter REFRESH_RATE = 500_000,  // default high refresh rate for 
 
     localparam REFRESH_CLOCKS = CLK_FREQUENCY / REFRESH_RATE;
     localparam SEGMENT_CLOCKS = REFRESH_CLOCKS / 4;
-    localparam MIN_SEGMENT_CLOCKS = SEGMENT_CLOCKS - 1;
-    localparam MAX_SEGMENT_CLOCKS = SEGMENT_CLOCKS + 1;
     // Indicates the maximum amount of time to wait before giving up on an anode change
     localparam MAX_CLOCKS_FOR_ANODE_CHANGE = SEGMENT_CLOCKS * 20;
 
@@ -31,7 +29,7 @@ module tb #(parameter REFRESH_RATE = 500_000,  // default high refresh rate for 
     assign valid_anode = !(^tb_anode === 1'bX) && ($countones(~tb_anode) == 1);
     // indicates we have a valid anode and it is new (just changed)
     assign new_valid_anode = !(^tb_anode === 1'bX) &&  !(^tb_anode_d  === 1'bX)
-        && valid_anode && (tb_anode != tb_anode_d);
+        && valid_anode && (tb_anode != tb_anode_d) && !rst;
 
     always_ff @(posedge clk) begin
         tb_anode_d <= tb_anode;
@@ -101,10 +99,14 @@ module tb #(parameter REFRESH_RATE = 500_000,  // default high refresh rate for 
                         anode_clk_count+1,SEGMENT_CLOCKS);
                     errors = errors + 1;
                 end
-                else if (anode_clk_count >= SEGMENT_CLOCKS - 1 && ~timing_message ) begin
+                else if (anode_clk_count == SEGMENT_CLOCKS - 1 && ~timing_message ) begin
                     timing_message = 1;
                     $display("[%0t] Correct anode segment timing = %0d clocks", $time,
                         anode_clk_count+1);
+                end else if (anode_clk_count > SEGMENT_CLOCKS - 1) begin
+                    $display("[%0t]  ERROR: Too many segment clocks: %d expecting %d", $time, 
+                        anode_clk_count+1,SEGMENT_CLOCKS);
+                    errors = errors + 1;
                 end
             end
             anode_clk_count = 0;

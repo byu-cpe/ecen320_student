@@ -44,6 +44,7 @@ work/synth.dcp: $(SV_FILES) basys3.xdc
 	export MODULE_NAME=$(MODULE_NAME)
 	export SV_FILES="$(addprefix ../,$(SV_FILES))"
 	export XDC_PATH="../basys3.xdc"
+	export SYNTH_PARAMS="$(foreach PARAM,$(SYNTH_PARAMS),-generic $(PARAM))"
 	vivado -mode batch -source ../$(REPO_PATH)/resources/synth.tcl -log synth.log -nojournal -notrace
 
 open_synth_checkpoint: work/synth.dcp
@@ -59,7 +60,7 @@ open_implement_checkpoint: work/implement.dcp
 	cd work
 	vivado implement.dcp -notrace -nojournal
 
-download: work/implement.dcp
+download: work work/implement.dcp
 	cd work
 	python3 ../$(REPO_PATH)/resources/openocd.py design.bit
 

@@ -1,6 +1,10 @@
+
+# Add your rules here
+
 clean:
-	cd seven_segment4; make clean
-	cd ssd_top; make clean
+	cd codebreaker; make clean
+	cd codebreaker_top; make clean
+	cd decrypt_rc4; make clean
 
 ################################# Passoff rules ################################
 ENV_PATH = ../.venv/
@@ -15,4 +19,3 @@ passoff_check: $(ENV_PATH)/bin/activate
 
 passoff_submit: $(ENV_PATH)/bin/activate
 	$(IN_ENV) python passoff.py --submit
-
