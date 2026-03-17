@@ -27,9 +27,7 @@ required_files = [
 
 
 def main():
-    tester = test_suite_320.build_test_suite_320(
-        assignment_path, max_repo_files=30, start_date="03/31/2025"
-    )
+    tester = test_suite_320.build_test_suite_320(assignment_path, max_repo_files=30)
     tester.add_required_tracked_files(required_files)
     tester.add_makefile_rule("sim_tb", "char_gen", ["char_gen.sv"], ["work/sim_tb.log"])
     tester.add_build_test(
