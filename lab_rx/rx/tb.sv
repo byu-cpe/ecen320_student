@@ -6,6 +6,8 @@ module tb #(parameter CLK_FREQUENCY=100_000_000, parameter BAUD_RATE = 19_200);
    int         errors;
    int bitTime = CLK_FREQUENCY / BAUD_RATE;
    int halfBitTime = bitTime/2;
+   int bitTime98 = (bitTime * 98) / 100;
+   int bitTime102 = (bitTime * 102) / 100;
    // int         bitTime = 5208;
    // int         halfBitTime = bitTime/2;
 
@@ -44,7 +46,11 @@ module tb #(parameter CLK_FREQUENCY=100_000_000, parameter BAUD_RATE = 19_200);
       end
    endfunction // incErr
 
-   task sendData(input logic [7:0] mdin);
+   function void sampleHint();
+      pmsg("*** HINT: This may indicate the receiver is not sampling near the middle of the bit period");
+   endfunction
+
+   task sendDataWithBitTime(input logic [7:0] mdin, input int txBitTime);
       pmsg($sformatf("Testbench is getting ready to send 0x%0x", mdin));
 
       // Wait for a few negative edges of clock and then start sending
@@ -52,22 +58,26 @@ module tb #(parameter CLK_FREQUENCY=100_000_000, parameter BAUD_RATE = 19_200);
 
       // Start bit
       Sin = 0;
-      sdla(bitTime);
+      sdla(txBitTime);
 
       // Send bits
       for (int i=0;i<8;i++) begin
          Sin = mdin[i];
-         sdla(bitTime);
+         sdla(txBitTime);
       end
 
       // Send parity
       Sin = ~^mdin;
-      sdla(bitTime);
+      sdla(txBitTime);
 
       // Send stop bit
       Sin = 1;
-      sdla(bitTime);
+      sdla(txBitTime);
       pmsg($sformatf("   Testbench is done serially transmitting byte 0x%h", mdin));
+   endtask
+
+   task sendData(input logic [7:0] mdin);
+      sendDataWithBitTime(mdin, bitTime);
    endtask
 
    task chkTransfer(input logic [7:0] mdout);
@@ -76,12 +86,15 @@ module tb #(parameter CLK_FREQUENCY=100_000_000, parameter BAUD_RATE = 19_200);
       @(posedge Receive);
       sdla();
 
-      if (mdout != Dout)
+         if (mdout != Dout) begin
         incErr($sformatf("*** ERROR: expecting to have received byte 0x%0x but received 0x%0x instead", mdout, Dout));
-      else
+             sampleHint();
+         end else
         pmsg($sformatf("   Serially received data byte 0x%0x", Dout));
-      if (parityErr == 1)
+         if (parityErr == 1) begin
         incErr($sformatf("*** ERROR: parity error on received byte"));
+             sampleHint();
+         end
 
       ReceiveAck = 1;
       @(negedge Receive);
@@ -98,6 +111,13 @@ module tb #(parameter CLK_FREQUENCY=100_000_000, parameter BAUD_RATE = 19_200);
          chkTransfer(Din);
       join
 //      pmsg("Done with doTransfer");
+   endtask
+
+   task doTransferWithBitTime(input logic [7:0] Din, input int txBitTime);
+      fork
+         sendDataWithBitTime(Din, txBitTime);
+         chkTransfer(Din);
+      join
    endtask
 
    function void endSimulation();
@@ -153,6 +173,22 @@ module tb #(parameter CLK_FREQUENCY=100_000_000, parameter BAUD_RATE = 19_200);
 
       dla(100);
       doTransfer(8'h55);
+
+      $display();
+      pmsg("Doing test with 98% period");
+      dla(100);
+      doTransferWithBitTime(8'h37, bitTime98);
+
+      dla(100);
+      doTransferWithBitTime(8'h73, bitTime98);
+
+      $display();
+      pmsg("Doing test with 102% period");
+      dla(100);
+      doTransferWithBitTime(8'h37, bitTime102);
+
+      dla(100);
+      doTransferWithBitTime(8'h73, bitTime102);
 
       endSimulation();
       $finish;
