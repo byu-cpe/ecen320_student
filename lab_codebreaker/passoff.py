@@ -23,7 +23,6 @@ required_files = [
     "codebreaker_top/sim.tcl",
     "codebreaker_top/sim.png",
     "codebreaker_top/sim2.png",
-    "codebreaker_top/fpga.png",
 ]
 
 
