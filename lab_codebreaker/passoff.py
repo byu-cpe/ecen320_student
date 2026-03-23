@@ -36,7 +36,7 @@ def main():
         repo_test.FileRegexCheck(
             tester,
             "codebreaker/work/sim_tb.log",
-            "SUCCESS: Key found: 000005",
+            "SUCCESS: All three runs passed",
             "Codebreaker Testbench Test",
             error_on_match=False,
             error_msg="Codebreaker Testbench failed",
